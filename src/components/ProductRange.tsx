@@ -78,7 +78,7 @@ const ProductRange = () => {
             <div className="relative group mb-8">
               <div className="relative z-10 transform hover:scale-105 transition-transform duration-700">
                 <img 
-                  src="/images/fndr.jpg" 
+                  src="/images/prd.jpg" 
                   alt="TrueSkin Bio Collagen Face Mask" 
                   className="w-full max-w-sm h-auto rounded-2xl shadow-2xl"
                 />
