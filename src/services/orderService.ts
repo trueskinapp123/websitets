@@ -49,8 +49,11 @@ export const orderService = {
   // Create a new order
   async createOrder(orderData: CreateOrderData): Promise<Order | null> {
     try {
+      console.log('Creating order with data:', orderData);
+      
       // Calculate total amount
       const totalAmount = orderData.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      console.log('Calculated total amount:', totalAmount);
 
       // Create order
       const { data: order, error: orderError } = await supabase
@@ -70,8 +73,20 @@ export const orderService = {
 
       if (orderError) {
         console.error('Error creating order:', orderError);
+        console.error('Order data that failed:', {
+          user_id: orderData.userId,
+          customer_name: orderData.customerName,
+          customer_email: orderData.customerEmail,
+          customer_phone: orderData.customerPhone,
+          total_amount: totalAmount,
+          status: 'pending',
+          shipping_address: orderData.shippingAddress,
+          razorpay_order_id: orderData.razorpayOrderId
+        });
         return null;
       }
+
+      console.log('Order created successfully:', order);
 
       // Create order items
       const orderItems = orderData.cartItems.map(item => ({
@@ -80,6 +95,8 @@ export const orderService = {
         quantity: item.quantity,
         price: item.price
       }));
+
+      console.log('Creating order items:', orderItems);
 
       const { error: itemsError } = await supabase
         .from('order_items')
@@ -91,6 +108,8 @@ export const orderService = {
         await supabase.from('orders').delete().eq('id', order.id);
         return null;
       }
+
+      console.log('Order items created successfully');
 
       return {
         id: order.id,
