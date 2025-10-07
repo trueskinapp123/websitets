@@ -1,20 +1,19 @@
--- Complete Supabase Database Schema for TrueSkin E-commerce
--- This file contains all necessary tables, indexes, and policies for the application
+-- Complete Database Setup for TrueSkin E-commerce
+-- Run this in your Supabase SQL Editor
 
--- Enable necessary extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- ====================================================================
+-- 1. CREATE USER PROFILES TABLE
+-- ====================================================================
 
--- =============================================
--- USER PROFILES TABLE
--- =============================================
+-- Create user_profiles table
 CREATE TABLE IF NOT EXISTS user_profiles (
     id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
     full_name TEXT,
     phone TEXT,
     avatar_url TEXT,
     date_of_birth DATE,
-    gender TEXT CHECK (gender IN ('male', 'female', 'other')),
+    gender TEXT CHECK (gender IN ('male', 'female', 'other', 'prefer_not_to_say')),
     address_line1 TEXT,
     address_line2 TEXT,
     city TEXT,
@@ -25,9 +24,11 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- =============================================
--- PRODUCTS TABLE
--- =============================================
+-- ====================================================================
+-- 2. CREATE PRODUCTS TABLE
+-- ====================================================================
+
+-- Create products table
 CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -40,116 +41,101 @@ CREATE TABLE IF NOT EXISTS products (
     reviews INTEGER DEFAULT 0,
     popular BOOLEAN DEFAULT FALSE,
     images TEXT[] DEFAULT '{}',
-    stock_quantity INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- =============================================
--- CART TABLE
--- =============================================
-CREATE TABLE IF NOT EXISTS cart (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+-- ====================================================================
+-- 3. CREATE CART ITEMS TABLE
+-- ====================================================================
+
+-- Create cart_items table
+CREATE TABLE IF NOT EXISTS cart_items (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
     product_id TEXT REFERENCES products(id) ON DELETE CASCADE NOT NULL,
-    quantity INTEGER NOT NULL DEFAULT 1,
+    quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity > 0),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, product_id)
 );
 
--- =============================================
--- ORDERS TABLE
--- =============================================
+-- ====================================================================
+-- 4. CREATE ORDERS TABLE
+-- ====================================================================
+
+-- Create orders table
 CREATE TABLE IF NOT EXISTS orders (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
     customer_name TEXT NOT NULL,
     customer_email TEXT NOT NULL,
     customer_phone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded')),
     total_amount DECIMAL(10,2) NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid', 'failed', 'processing', 'shipped', 'delivered', 'cancelled')),
-    shipping_address JSONB NOT NULL,
     payment_id TEXT,
     razorpay_order_id TEXT,
-    razorpay_payment_id TEXT,
+    shipping_address JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- =============================================
--- ORDER ITEMS TABLE
--- =============================================
+-- ====================================================================
+-- 5. CREATE ORDER ITEMS TABLE
+-- ====================================================================
+
+-- Create order_items table
 CREATE TABLE IF NOT EXISTS order_items (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     order_id UUID REFERENCES orders(id) ON DELETE CASCADE NOT NULL,
     product_id TEXT REFERENCES products(id) ON DELETE CASCADE NOT NULL,
-    quantity INTEGER NOT NULL,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
     price DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- =============================================
--- PAYMENTS TABLE (Optional - for detailed payment tracking)
--- =============================================
-CREATE TABLE IF NOT EXISTS payments (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    order_id UUID REFERENCES orders(id) ON DELETE CASCADE NOT NULL,
-    razorpay_payment_id TEXT UNIQUE NOT NULL,
-    razorpay_order_id TEXT NOT NULL,
-    amount DECIMAL(10,2) NOT NULL,
-    currency TEXT DEFAULT 'INR',
-    status TEXT NOT NULL CHECK (status IN ('pending', 'captured', 'failed', 'refunded')),
-    method TEXT,
-    signature TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- =============================================
--- INDEXES FOR PERFORMANCE
--- =============================================
+-- ====================================================================
+-- 6. CREATE INDEXES FOR PERFORMANCE
+-- ====================================================================
 
 -- User profiles indexes
 CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles(email);
 CREATE INDEX IF NOT EXISTS idx_user_profiles_created_at ON user_profiles(created_at);
 
 -- Products indexes
-CREATE INDEX IF NOT EXISTS idx_products_popular ON products(popular) WHERE popular = TRUE;
-CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active) WHERE is_active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_products_price ON products(price);
+CREATE INDEX IF NOT EXISTS idx_products_popular ON products(popular);
+CREATE INDEX IF NOT EXISTS idx_products_rating ON products(rating DESC);
+CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at);
 
--- Cart indexes
-CREATE INDEX IF NOT EXISTS idx_cart_user_id ON cart(user_id);
-CREATE INDEX IF NOT EXISTS idx_cart_product_id ON cart(product_id);
+-- Cart items indexes
+CREATE INDEX IF NOT EXISTS idx_cart_items_user_id ON cart_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_product_id ON cart_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_cart_items_created_at ON cart_items(created_at);
 
 -- Orders indexes
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
-CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_razorpay_order_id ON orders(razorpay_order_id);
-CREATE INDEX IF NOT EXISTS idx_orders_payment_id ON orders(payment_id);
 
 -- Order items indexes
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);
 
--- Payments indexes
-CREATE INDEX IF NOT EXISTS idx_payments_order_id ON payments(order_id);
-CREATE INDEX IF NOT EXISTS idx_payments_razorpay_payment_id ON payments(razorpay_payment_id);
-CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
-
--- =============================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- =============================================
+-- ====================================================================
+-- 7. ENABLE ROW LEVEL SECURITY (RLS)
+-- ====================================================================
 
 -- Enable RLS on all tables
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE cart ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cart_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+
+-- ====================================================================
+-- 8. CREATE RLS POLICIES
+-- ====================================================================
 
 -- User profiles policies
 CREATE POLICY "Users can view own profile" ON user_profiles
@@ -161,19 +147,29 @@ CREATE POLICY "Users can update own profile" ON user_profiles
 CREATE POLICY "Users can insert own profile" ON user_profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Cart policies
-CREATE POLICY "Users can manage own cart" ON cart
-    FOR ALL USING (auth.uid() = user_id);
+-- Products policies (public read access)
+CREATE POLICY "Anyone can view products" ON products
+    FOR SELECT USING (true);
+
+-- Cart items policies
+CREATE POLICY "Users can view own cart items" ON cart_items
+    FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own cart items" ON cart_items
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own cart items" ON cart_items
+    FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own cart items" ON cart_items
+    FOR DELETE USING (auth.uid() = user_id);
 
 -- Orders policies
 CREATE POLICY "Users can view own orders" ON orders
     FOR SELECT USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can create own orders" ON orders
+CREATE POLICY "Users can insert own orders" ON orders
     FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own orders" ON orders
-    FOR UPDATE USING (auth.uid() = user_id);
 
 -- Order items policies
 CREATE POLICY "Users can view own order items" ON order_items
@@ -185,25 +181,18 @@ CREATE POLICY "Users can view own order items" ON order_items
         )
     );
 
-CREATE POLICY "System can insert order items" ON order_items
-    FOR INSERT WITH CHECK (true);
-
--- Payments policies
-CREATE POLICY "Users can view own payments" ON payments
-    FOR SELECT USING (
+CREATE POLICY "Users can insert own order items" ON order_items
+    FOR INSERT WITH CHECK (
         EXISTS (
             SELECT 1 FROM orders 
-            WHERE orders.id = payments.order_id 
+            WHERE orders.id = order_items.order_id 
             AND orders.user_id = auth.uid()
         )
     );
 
-CREATE POLICY "System can manage payments" ON payments
-    FOR ALL WITH CHECK (true);
-
--- =============================================
--- FUNCTIONS AND TRIGGERS
--- =============================================
+-- ====================================================================
+-- 9. CREATE TRIGGERS FOR UPDATED_AT
+-- ====================================================================
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -214,27 +203,28 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers for updated_at
+-- Create triggers
 CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_cart_updated_at BEFORE UPDATE ON cart
+CREATE TRIGGER update_cart_items_updated_at BEFORE UPDATE ON cart_items
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_payments_updated_at BEFORE UPDATE ON payments
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- ====================================================================
+-- 10. CREATE FUNCTION TO HANDLE NEW USER SIGNUP
+-- ====================================================================
 
--- Function to handle new user signup
-CREATE OR REPLACE FUNCTION handle_new_user()
+-- Function to create user profile on signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO user_profiles (id, email, full_name)
+    INSERT INTO public.user_profiles (id, email, full_name)
     VALUES (
         NEW.id,
         NEW.email,
@@ -242,16 +232,16 @@ BEGIN
     );
     RETURN NEW;
 END;
-$$ language 'plpgsql' SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger for new user signup
+-- Trigger to create profile on user signup
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
-    FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- =============================================
--- SAMPLE DATA INSERTION
--- =============================================
+-- ====================================================================
+-- 11. INSERT SAMPLE PRODUCTS
+-- ====================================================================
 
 -- Insert sample products
 INSERT INTO products (id, name, count, original_price, price, discount, description, rating, reviews, popular, images) VALUES
@@ -271,24 +261,30 @@ ON CONFLICT (id) DO UPDATE SET
     images = EXCLUDED.images,
     updated_at = NOW();
 
--- =============================================
--- GRANT PERMISSIONS
--- =============================================
+-- ====================================================================
+-- 12. GRANT PERMISSIONS
+-- ====================================================================
 
--- Grant necessary permissions to authenticated users
-GRANT USAGE ON SCHEMA public TO authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+-- Grant necessary permissions
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated;
 
--- Grant permissions to anon users for public data
-GRANT USAGE ON SCHEMA public TO anon;
-GRANT SELECT ON products TO anon;
-GRANT SELECT ON user_profiles TO anon;
+-- ====================================================================
+-- 13. VERIFY SETUP
+-- ====================================================================
 
--- =============================================
--- COMPLETION MESSAGE
--- =============================================
+-- Verify tables exist
+SELECT 'Tables created successfully' as status;
 
--- This completes the database setup
--- Run this script in your Supabase SQL editor to set up the complete database schema
+-- Check if products were inserted
+SELECT COUNT(*) as product_count FROM products;
+
+-- Check if policies are enabled
+SELECT schemaname, tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public' 
+AND tablename IN ('user_profiles', 'products', 'cart_items', 'orders', 'order_items');
+
+SELECT 'Database setup completed successfully!' as message;

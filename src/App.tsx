@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider, useCart } from './contexts/CartContext';
-import { useCartPersistence } from './hooks/useCartPersistence';
 import { queryClient } from './lib/queryClient';
 import Home from './pages/Home';
 import Shop from './pages/Shop';
@@ -17,12 +16,9 @@ import PaymentFailure from './pages/PaymentFailure';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
 
-// Component to handle toast notifications and cart persistence
+// Component to handle toast notifications
 const AppContent = () => {
   const { state, dispatch } = useCart();
-  
-  // Handle cart persistence across login/logout
-  useCartPersistence();
 
   const handleCloseToast = () => {
     dispatch({ type: 'SHOW_ADDED_MESSAGE', payload: false });
