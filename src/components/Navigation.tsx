@@ -65,9 +65,9 @@ const Navigation = () => {
         <div className="flex items-center">
           <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <img 
-              src="/images/logo.png" 
+              src="https://i.ibb.co/3yJc0bgQ/LOGO-TRUSKIN.png" 
               alt="TrueSkin Logo" 
-              className="h-10 sm:h-12 lg:h-16 w-auto transition-all duration-300 hover:scale-105"
+              className="h-10 sm:h-12 lg:h-16 w-auto transition-all duration-300 hover:scale-105 filter drop-shadow-md"
               onError={(e) => {
                 // Fallback to text logo if image fails to load
                 e.currentTarget.style.display = 'none';
