@@ -1,85 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Star, CheckCircle } from 'lucide-react';
+import { ShoppingCart, Star, CheckCircle, AlertCircle } from 'lucide-react';
 import ProductModal from '../components/ProductModal';
 import Navigation from '../components/Navigation';
+import ProductSkeletonGrid from '../components/ProductSkeleton';
+import OptimizedImage from '../components/OptimizedImage';
 import { Product, useCart } from '../contexts/CartContext';
-import { productService } from '../services/productService';
+import { useProducts } from '../hooks/useProducts';
 
 const Shop = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { addToCart, state } = useCart();
 
-  // Load products from Supabase
-  useEffect(() => {
-    const loadProducts = async () => {
-      try {
-        console.log('Shop: Starting to load products...');
-        setIsLoading(true);
-        const productsData = await productService.getProducts();
-        console.log('Shop: Products loaded:', productsData.length);
-        setProducts(productsData);
-      } catch (error) {
-        console.error('Shop: Error loading products:', error);
-        // Set fallback products if there's an error
-        setProducts([
-          {
-            id: "heal-pack",
-            name: "Heal Pack",
-            count: "4 Masks",
-            originalPrice: 420,
-            price: 304,
-            discount: "5% OFF",
-            description: "Perfect starter pack for first-time users. Experience the power of premium collagen with our carefully curated 4-mask collection designed to introduce your skin to the TrueSkin difference.",
-            rating: 4.8,
-            reviews: 124,
-            images: [
-              "https://i.ibb.co/bMTNmmqR/Whats-App-Image-2025-08-13-at-18-16-29-1832814a.jpg",
-              "https://i.ibb.co/bMTNmmqR/Whats-App-Image-2025-08-13-at-18-16-29-1832814a.jpg"
-            ]
-          },
-          {
-            id: "fresh-pack",
-            name: "Fresh Pack",
-            count: "8 Masks",
-            originalPrice: 800,
-            price: 576,
-            discount: "5% OFF",
-            description: "Most popular choice for regular users. Transform your skincare routine with our 8-mask collection, perfect for maintaining that radiant glow throughout the month.",
-            rating: 4.9,
-            reviews: 286,
-            popular: true,
-            images: [
-              "https://i.ibb.co/bMTNmmqR/Whats-App-Image-2025-08-13-at-18-16-29-1832814a.jpg",
-              "https://i.ibb.co/bMTNmmqR/Whats-App-Image-2025-08-13-at-18-16-29-1832814a.jpg"
-            ]
-          },
-          {
-            id: "glow-pack",
-            name: "Glow Pack",
-            count: "12 Masks",
-            originalPrice: 1158,
-            price: 816,
-            discount: "5% OFF",
-            description: "Best value for skincare enthusiasts. Our premium 12-mask collection offers the ultimate skincare experience with maximum savings and long-lasting results.",
-            rating: 4.9,
-            reviews: 198,
-            images: [
-              "https://i.ibb.co/bMTNmmqR/Whats-App-Image-2025-08-13-at-18-16-29-1832814a.jpg",
-              "https://i.ibb.co/bMTNmmqR/Whats-App-Image-2025-08-13-at-18-16-29-1832814a.jpg"
-            ]
-          }
-        ]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadProducts();
-  }, []);
+  // Use React Query for optimized product fetching
+  const { data: products = [], isLoading, error, refetch } = useProducts();
 
   const handleProductClick = (product: Product) => {
     setSelectedProduct(product);
@@ -163,9 +98,32 @@ const Shop = () => {
       <section className="py-20">
         <div className="max-w-7xl mx-auto px-6 lg:px-12">
           {isLoading ? (
+            <ProductSkeletonGrid count={6} />
+          ) : error ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#b66837] mx-auto mb-4"></div>
-              <p className="font-lato text-lg text-[#874c2b]">Loading products...</p>
+              <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+              <h2 className="font-playfair text-2xl font-bold text-[#803716] mb-4">
+                Failed to Load Products
+              </h2>
+              <p className="font-lato text-gray-600 mb-8">
+                We're having trouble loading our products. Please try again.
+              </p>
+              <button
+                onClick={() => refetch()}
+                className="bg-[#e58f5a] hover:bg-[#b66837] text-white px-8 py-3 rounded-full font-lato font-semibold transition-all duration-300 transform hover:scale-105"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-12">
+              <ShoppingCart className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h2 className="font-playfair text-2xl font-bold text-[#803716] mb-4">
+                No Products Available
+              </h2>
+              <p className="font-lato text-gray-600">
+                We're currently updating our product catalog. Please check back soon.
+              </p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -187,10 +145,11 @@ const Shop = () => {
 
                 {/* Product Image */}
                 <div className="relative h-64 overflow-hidden">
-                  <img
-                    src={product.images[0]}
+                  <OptimizedImage
+                    src={product.images[0] || '/images/placeholder.jpg'}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    fallbackSrc="/images/placeholder.jpg"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                 </div>

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, ChevronLeft, ChevronRight, ShoppingCart, Star, LogIn } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ShoppingCart, Star, LogIn, Check } from 'lucide-react';
 import { Product, useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
+import LoadingSpinner from './LoadingSpinner';
 
 interface ProductModalProps {
   product: Product | null;
@@ -14,6 +15,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
   const { addToCart, state } = useCart();
   const { user } = useAuth();
   const [showLoginMessage, setShowLoginMessage] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   if (!isOpen || !product) return null;
 
@@ -24,10 +26,19 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
       return;
     }
 
-    const success = await addToCart(product);
-    if (!success) {
-      // Handle error - could show an error message
-      console.error('Failed to add product to cart');
+    setIsAdding(true);
+    try {
+      const success = await addToCart(product);
+      if (success) {
+        // Brief visual feedback
+        setTimeout(() => setIsAdding(false), 300);
+      } else {
+        setIsAdding(false);
+        console.error('Failed to add product to cart');
+      }
+    } catch (error) {
+      setIsAdding(false);
+      console.error('Error adding to cart:', error);
     }
   };
 
@@ -189,9 +200,9 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
               )}
               
               {state.showAddedMessage && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center animate-pulse">
                   <div className="flex items-center justify-center gap-2">
-                    <ShoppingCart className="w-5 h-5 text-green-600" />
+                    <Check className="w-5 h-5 text-green-600 animate-bounce" />
                     <p className="font-lato text-green-800 text-sm">
                       Added to cart successfully!
                     </p>
@@ -201,17 +212,24 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
               
               <button
                 onClick={handleAddToCart}
-                disabled={state.isLoading}
+                disabled={isAdding || !user}
                 className={`w-full ${
-                  user 
-                    ? 'bg-[#b66837] hover:bg-[#803716]' 
+                  user && !isAdding
+                    ? 'bg-[#b66837] hover:bg-[#803716] transform hover:scale-105 hover:shadow-lg' 
+                    : isAdding
+                    ? 'bg-[#e58f5a]'
                     : 'bg-gray-400 cursor-not-allowed'
-                } text-white px-6 py-4 rounded-full font-lato font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-3 group disabled:transform-none disabled:hover:scale-100 disabled:hover:shadow-none`}
+                } text-white px-6 py-4 rounded-full font-lato font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-3 group`}
               >
-                {state.isLoading ? (
+                {isAdding ? (
                   <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <LoadingSpinner size="sm" color="#ffffff" />
                     Adding...
+                  </>
+                ) : state.showAddedMessage ? (
+                  <>
+                    <Check className="w-5 h-5 animate-bounce" />
+                    Added!
                   </>
                 ) : (
                   <>

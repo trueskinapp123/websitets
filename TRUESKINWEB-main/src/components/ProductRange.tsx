@@ -1,78 +1,36 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, Star } from 'lucide-react';
+import { ShoppingCart, Star, Check } from 'lucide-react';
 import ProductModal from './ProductModal';
-import { Product } from '../contexts/CartContext';
-import { productService } from '../services/productService';
+import { Product, useCart } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getAllProducts } from '../data/products.js';
+import LoadingSpinner from './LoadingSpinner';
 
 const ProductRange = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
+  const { addToCart, state } = useCart();
+  const { user } = useAuth();
 
-  // Load products from Supabase
+  // Load products from local data
   useEffect(() => {
     const loadProducts = async () => {
       try {
-        console.log('ProductRange: Starting to load products...');
+        console.log('ProductRange: Loading products from local data...');
         setIsLoading(true);
-        const productsData = await productService.getProducts();
+        
+        // Simulate a small delay for smooth loading
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        const productsData = getAllProducts();
         console.log('ProductRange: Products loaded:', productsData.length);
         setProducts(productsData);
       } catch (error) {
         console.error('ProductRange: Error loading products:', error);
-        // Set fallback products if there's an error
-        setProducts([
-          {
-            id: "heal-pack",
-            name: "Heal Pack",
-            count: "4 Masks",
-            originalPrice: 420,
-            price: 304,
-            discount: "5% OFF",
-            description: "Perfect starter pack for first-time users. Experience the power of premium collagen with our carefully curated 4-mask collection designed to introduce your skin to the TrueSkin difference.",
-            rating: 4.8,
-            reviews: 124,
-            images: [
-              "./images/p4.png",
-              "./images/prd.jpg",
-              "./images/tsp.jpg"
-            ]
-          },
-          {
-            id: "fresh-pack",
-            name: "Fresh Pack",
-            count: "8 Masks",
-            originalPrice: 800,
-            price: 576,
-            discount: "5% OFF",
-            description: "Most popular choice for regular users. Transform your skincare routine with our 8-mask collection, perfect for maintaining that radiant glow throughout the month.",
-            rating: 4.9,
-            reviews: 286,
-            popular: true,
-            images: [
-              "./images/p8.png",
-              "./images/prd.jpg",
-              "./images/tsp.jpg"
-            ]
-          },
-          {
-            id: "glow-pack",
-            name: "Glow Pack",
-            count: "12 Masks",
-            originalPrice: 1158,
-            price: 816,
-            discount: "5% OFF",
-            description: "Best value for skincare enthusiasts. Our premium 12-mask collection offers the ultimate skincare experience with maximum savings and long-lasting results.",
-            rating: 4.9,
-            reviews: 198,
-            images: [
-              "./images/p12.png",
-              "./images/prd.jpg",
-              "./images/tsp.jpg"
-            ]
-          }
-        ]);
+        setProducts([]);
       } finally {
         setIsLoading(false);
       }
@@ -89,6 +47,30 @@ const ProductRange = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
+  };
+
+  const handleQuickAddToCart = async (product: Product, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      setSelectedProduct(product);
+      setIsModalOpen(true);
+      return;
+    }
+
+    setAddingToCart(product.id);
+    try {
+      const success = await addToCart(product);
+      if (success) {
+        // Brief visual feedback
+        setTimeout(() => setAddingToCart(null), 300);
+      } else {
+        setAddingToCart(null);
+      }
+    } catch (error) {
+      setAddingToCart(null);
+      console.error('Error adding to cart:', error);
+    }
   };
 
   if (isLoading) {
@@ -125,7 +107,7 @@ const ProductRange = () => {
             <div className="relative group mb-8">
               <div className="relative z-10 transform hover:scale-105 transition-transform duration-700">
                 <img 
-                  src="https://i.ibb.co/bMTNmmqR/Whats-App-Image-2025-08-13-at-18-16-29-1832814a.jpg" 
+                  src="/images/fndr.jpg" 
                   alt="TrueSkin Bio Collagen Face Mask" 
                   className="w-full max-w-sm h-auto rounded-2xl shadow-2xl"
                 />
@@ -177,9 +159,12 @@ const ProductRange = () => {
                   {/* Product Image */}
                   <div className="relative h-64 overflow-hidden">
                     <img
-                      src={product.images[0]}
+                      src={product.images[0] || '/images/placeholder.jpg'}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        e.currentTarget.src = '/images/placeholder.jpg';
+                      }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                   </div>
@@ -242,14 +227,25 @@ const ProductRange = () => {
 
                         {/* CTA Button */}
                         <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleProductClick(product);
-                          }}
-                          className="w-full bg-[#b66837] hover:bg-[#803716] text-white px-6 py-3 rounded-full font-lato font-semibold text-base transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 group"
+                          onClick={(e) => handleQuickAddToCart(product, e)}
+                          disabled={addingToCart === product.id}
+                          className={`w-full ${
+                            addingToCart === product.id
+                              ? 'bg-[#e58f5a]'
+                              : 'bg-[#b66837] hover:bg-[#803716] transform hover:scale-105 hover:shadow-lg'
+                          } text-white px-6 py-3 rounded-full font-lato font-semibold text-base transition-all duration-300 flex items-center justify-center gap-2 group disabled:transform-none disabled:hover:scale-100 disabled:hover:shadow-none`}
                         >
-                          <ShoppingCart className="w-4 h-4 group-hover:animate-bounce" />
-                          Add to Cart
+                          {addingToCart === product.id ? (
+                            <>
+                              <LoadingSpinner size="sm" color="#ffffff" />
+                              Adding...
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingCart className="w-4 h-4 group-hover:animate-bounce" />
+                              Add to Cart
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>

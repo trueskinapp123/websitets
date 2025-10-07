@@ -65,9 +65,20 @@ const Navigation = () => {
         <div className="flex items-center">
           <Link to="/" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <img 
-              src="https://i.ibb.co/3yJc0bgQ/LOGO-TRUSKIN.png" 
+              src="/images/logo.png" 
               alt="TrueSkin Logo" 
               className="h-10 sm:h-12 lg:h-16 w-auto transition-all duration-300 hover:scale-105"
+              onError={(e) => {
+                // Fallback to text logo if image fails to load
+                e.currentTarget.style.display = 'none';
+                const parent = e.currentTarget.parentElement;
+                if (parent && !parent.querySelector('.fallback-logo')) {
+                  const fallback = document.createElement('div');
+                  fallback.className = 'fallback-logo font-playfair text-2xl font-bold text-[#803716]';
+                  fallback.textContent = 'TrueSkin';
+                  parent.appendChild(fallback);
+                }
+              }}
             />
           </Link>
         </div>

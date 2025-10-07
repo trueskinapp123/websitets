@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Phone, Send, Clock, MessageCircle } from 'lucide-react';
+import { Mail, Phone, Send, MessageCircle } from 'lucide-react';
 import Navigation from '../components/Navigation';
 
 const Contact = () => {

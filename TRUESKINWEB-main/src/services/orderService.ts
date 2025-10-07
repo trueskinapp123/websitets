@@ -289,11 +289,9 @@ export const orderService = {
     }
   },
 
-  // Send order confirmation email
+  // Send order confirmation email to admin
   async sendOrderConfirmationEmail(order: Order, orderItems: OrderItem[]): Promise<boolean> {
     try {
-      // This would typically call a Supabase Edge Function or external email service
-      // For now, we'll use the existing email service
       const { sendOrderConfirmation } = await import('../lib/email');
       
       const emailData = {
@@ -315,6 +313,67 @@ export const orderService = {
     } catch (error) {
       console.error('Error sending order confirmation email:', error);
       return false;
+    }
+  },
+
+  // Send order confirmation email to customer
+  async sendCustomerOrderConfirmation(order: Order, orderItems: OrderItem[]): Promise<boolean> {
+    try {
+      const { sendOrderConfirmation } = await import('../lib/email');
+      
+      const emailData = {
+        to: order.customerEmail,
+        subject: 'Order Confirmation - TrueSkin',
+        order: {
+          id: order.id,
+          customerName: order.customerName,
+          customerEmail: order.customerEmail,
+          customerPhone: order.customerPhone,
+          totalAmount: order.totalAmount,
+          shippingAddress: order.shippingAddress,
+          items: orderItems,
+          createdAt: order.createdAt
+        }
+      };
+
+      return await sendOrderConfirmation(emailData);
+    } catch (error) {
+      console.error('Error sending customer order confirmation email:', error);
+      return false;
+    }
+  },
+
+  // Complete order placement with all necessary steps
+  async placeOrder(orderData: CreateOrderData): Promise<{ order: Order | null; success: boolean; error?: string }> {
+    try {
+      // Create the order
+      const order = await this.createOrder(orderData);
+      if (!order) {
+        return { order: null, success: false, error: 'Failed to create order' };
+      }
+
+      // Get order items for email notifications
+      const orderItems = await this.getOrderItems(order.id);
+      
+      // Send email notifications (don't fail the order if emails fail)
+      try {
+        await Promise.all([
+          this.sendOrderConfirmationEmail(order, orderItems),
+          this.sendCustomerOrderConfirmation(order, orderItems)
+        ]);
+      } catch (emailError) {
+        console.warn('Email notifications failed, but order was created:', emailError);
+      }
+
+      // Clear user's cart after successful order
+      if (orderData.userId !== 'guest') {
+        await this.clearUserCart(orderData.userId);
+      }
+
+      return { order, success: true };
+    } catch (error) {
+      console.error('Error in placeOrder:', error);
+      return { order: null, success: false, error: 'Failed to place order' };
     }
   }
 };

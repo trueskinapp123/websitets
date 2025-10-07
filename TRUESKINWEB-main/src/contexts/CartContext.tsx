@@ -33,6 +33,9 @@ type CartAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_AUTHENTICATED'; payload: boolean }
   | { type: 'LOAD_CART_ITEMS'; payload: CartItem[] }
+  | { type: 'OPTIMISTIC_ADD_ITEM'; payload: Product }
+  | { type: 'OPTIMISTIC_REMOVE_ITEM'; payload: string }
+  | { type: 'OPTIMISTIC_UPDATE_QUANTITY'; payload: { productId: string; quantity: number } }
   | { type: 'SHOW_ADDED_MESSAGE'; payload: boolean }
   | { type: 'CLEAR_CART' };
 
@@ -68,6 +71,56 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
         itemCount: action.payload.reduce((sum, item) => sum + item.quantity, 0),
         isLoading: false
       };
+
+    case 'OPTIMISTIC_ADD_ITEM': {
+      const existingItemIndex = state.items.findIndex(item => item.id === action.payload.id);
+      let newItems: CartItem[];
+      
+      if (existingItemIndex >= 0) {
+        // Item exists, increment quantity
+        newItems = state.items.map((item, index) => 
+          index === existingItemIndex 
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      } else {
+        // New item, add to cart
+        newItems = [...state.items, { ...action.payload, quantity: 1 }];
+      }
+      
+      return {
+        ...state,
+        items: newItems,
+        total: newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        itemCount: newItems.reduce((sum, item) => sum + item.quantity, 0),
+        showAddedMessage: true
+      };
+    }
+
+    case 'OPTIMISTIC_REMOVE_ITEM': {
+      const newItems = state.items.filter(item => item.id !== action.payload);
+      return {
+        ...state,
+        items: newItems,
+        total: newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        itemCount: newItems.reduce((sum, item) => sum + item.quantity, 0)
+      };
+    }
+
+    case 'OPTIMISTIC_UPDATE_QUANTITY': {
+      const newItems = state.items.map(item => 
+        item.id === action.payload.productId 
+          ? { ...item, quantity: action.payload.quantity }
+          : item
+      ).filter(item => item.quantity > 0);
+      
+      return {
+        ...state,
+        items: newItems,
+        total: newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+        itemCount: newItems.reduce((sum, item) => sum + item.quantity, 0)
+      };
+    }
 
     case 'SHOW_ADDED_MESSAGE':
       return {
@@ -136,43 +189,41 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return false;
     }
 
-    dispatch({ type: 'SET_LOADING', payload: true });
-    try {
-      // Add to Supabase
-      await cartService.addToCart(user.id, product.id, 1);
-      
-      // Reload cart from Supabase to get updated state
-      await loadUserCart();
-      
-      // Show success message
-      dispatch({ type: 'SHOW_ADDED_MESSAGE', payload: true });
-      setTimeout(() => {
-        dispatch({ type: 'SHOW_ADDED_MESSAGE', payload: false });
-      }, 2000);
-      
-      return true;
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      dispatch({ type: 'SET_LOADING', payload: false });
-      return false;
-    }
+    // Optimistic update - update UI immediately
+    dispatch({ type: 'OPTIMISTIC_ADD_ITEM', payload: product });
+    
+    // Auto-hide success message after 2 seconds
+    setTimeout(() => {
+      dispatch({ type: 'SHOW_ADDED_MESSAGE', payload: false });
+    }, 2000);
+
+    // Sync with Supabase in background (don't await)
+    cartService.addToCart(user.id, product.id, 1)
+      .then(async () => {
+        // Optionally reload cart to ensure sync (can be removed for even better performance)
+        // await loadUserCart();
+      })
+      .catch((error) => {
+        console.error('Error syncing with Supabase:', error);
+        // Could implement rollback logic here if needed
+      });
+    
+    return true; // Always return true since UI is updated optimistically
   };
 
   // Remove product from cart (only for authenticated users)
   const removeFromCart = async (productId: string): Promise<void> => {
     if (!state.isAuthenticated || !user?.id) return;
 
-    dispatch({ type: 'SET_LOADING', payload: true });
-    try {
-      // Remove from Supabase
-      await cartService.removeFromCart(user.id, productId);
-      
-      // Reload cart from Supabase to get updated state
-      await loadUserCart();
-    } catch (error) {
-      console.error('Error removing from cart:', error);
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
+    // Optimistic update - update UI immediately
+    dispatch({ type: 'OPTIMISTIC_REMOVE_ITEM', payload: productId });
+
+    // Sync with Supabase in background
+    cartService.removeFromCart(user.id, productId)
+      .catch((error) => {
+        console.error('Error syncing removal with Supabase:', error);
+        // Could implement rollback logic here if needed
+      });
   };
 
   // Update product quantity (only for authenticated users)
@@ -185,17 +236,15 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    dispatch({ type: 'SET_LOADING', payload: true });
-    try {
-      // Update in Supabase
-      await cartService.updateCartItemQuantity(user.id, productId, quantity);
-      
-      // Reload cart from Supabase to get updated state
-      await loadUserCart();
-    } catch (error) {
-      console.error('Error updating quantity:', error);
-      dispatch({ type: 'SET_LOADING', payload: false });
-    }
+    // Optimistic update - update UI immediately
+    dispatch({ type: 'OPTIMISTIC_UPDATE_QUANTITY', payload: { productId, quantity } });
+
+    // Sync with Supabase in background
+    cartService.updateCartItemQuantity(user.id, productId, quantity)
+      .catch((error) => {
+        console.error('Error syncing quantity update with Supabase:', error);
+        // Could implement rollback logic here if needed
+      });
   };
 
   // Clear entire cart (only for authenticated users)

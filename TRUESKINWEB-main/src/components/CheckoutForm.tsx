@@ -4,6 +4,7 @@ import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 import { paymentService } from '../services/paymentService';
 import { orderService } from '../services/orderService';
+import { razorpayService } from '../services/razorpayService';
 import { CreditCard, MapPin, User, Mail, Phone, ShoppingBag, ArrowLeft, Shield, Clock, CheckCircle } from 'lucide-react';
 
 interface FormData {
@@ -99,7 +100,10 @@ const CheckoutForm: React.FC = () => {
   };
 
   const handlePayment = async () => {
+    console.log('Payment process started...');
+    
     if (!validateForm()) {
+      console.log('Form validation failed');
       return;
     }
 
@@ -115,7 +119,7 @@ const CheckoutForm: React.FC = () => {
     }
 
     // Validate payment amount
-    if (!paymentService.validatePaymentAmount(cartState.total)) {
+    if (!razorpayService.validateAmount(cartState.total)) {
       setPaymentError('Invalid payment amount. Please check your cart.');
       return;
     }
@@ -124,7 +128,12 @@ const CheckoutForm: React.FC = () => {
     setPaymentError('');
 
     try {
-      // Create order first
+      console.log('Creating order in database...');
+      
+      // Generate unique order ID
+      const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Create order in database first
       const orderData = {
         userId: user.id,
         customerName: formData.fullName,
@@ -137,84 +146,105 @@ const CheckoutForm: React.FC = () => {
           zip: formData.zip,
         },
         cartItems: cartState.items,
+        razorpayOrderId: orderId,
       };
 
       const order = await orderService.createOrder(orderData);
 
       if (!order) {
         setPaymentError('Failed to create order. Please try again.');
+        setIsProcessing(false);
         return;
       }
 
-      // Process payment
-      const paymentRequest = {
-        amount: cartState.total,
-        customerInfo: {
+      console.log('Order created successfully:', order.id);
+
+      // Create Razorpay order
+      console.log('Creating Razorpay order...');
+      const razorpayOrder = await razorpayService.createOrder(cartState.total, orderId);
+      console.log('Razorpay order created:', razorpayOrder);
+
+      // Initialize Razorpay payment
+      console.log('Initializing Razorpay payment...');
+      await razorpayService.initializePayment(
+        razorpayOrder.id,
+        cartState.total,
+        {
           name: formData.fullName,
           email: formData.email,
           contact: formData.phone,
         },
-        shippingAddress: {
-          street: formData.street,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip,
-        },
-        cartItems: cartState.items,
-        userId: user.id,
-        orderId: order.id,
-      };
-
-      const paymentResponse = await paymentService.processPayment(paymentRequest);
-
-      if (paymentResponse.success && paymentResponse.paymentId) {
-        // Update order with payment details
-        await orderService.updateOrderStatus(order.id, 'paid', paymentResponse.paymentId);
-
-        // Get order items for email
-        const orderItems = await orderService.getOrderItems(order.id);
-
-        // Send email notification
-        try {
-          await orderService.sendOrderConfirmationEmail(order, orderItems);
-        } catch (emailError) {
-          console.error('Failed to send email notification:', emailError);
-          // Don't fail the payment for email errors
-        }
-
-        // Clear cart
-        await orderService.clearUserCart(user.id);
-        await clearCart();
-
-        // Redirect to success page
-        navigate('/order-success', { 
-          state: { 
-            orderId: order.id,
-            paymentId: paymentResponse.paymentId,
-            totalAmount: cartState.total 
-          } 
-        });
-      } else {
-        // Update order status to failed
-        await orderService.updateOrderStatus(order.id, 'failed');
-        
-        const errorMessage = paymentResponse.error || 'Payment failed. Please try again.';
-        setPaymentError(errorMessage);
-        
-        // Redirect to payment failure page after a short delay
-        setTimeout(() => {
-          navigate('/payment-failure', {
-            state: {
-              error: errorMessage,
-              orderId: order.id
+        // Success handler
+        async (paymentResponse: any) => {
+          try {
+            console.log('Payment successful:', paymentResponse);
+            
+            // Verify payment
+            const isValid = await razorpayService.verifyPayment(paymentResponse);
+            if (!isValid) {
+              throw new Error('Payment verification failed');
             }
-          });
-        }, 2000);
-      }
+
+            // Update order status to paid
+            await orderService.updateOrderStatus(order.id, 'paid', paymentResponse.razorpay_payment_id);
+
+            // Get order items for email
+            const orderItems = await orderService.getOrderItems(order.id);
+
+            // Send email notification
+            try {
+              await orderService.sendOrderConfirmationEmail(order, orderItems);
+            } catch (emailError) {
+              console.error('Failed to send email notification:', emailError);
+              // Don't fail the payment for email errors
+            }
+
+            // Clear cart
+            await orderService.clearUserCart(user.id);
+            await clearCart();
+
+            // Redirect to success page
+            navigate('/order-success', { 
+              state: { 
+                orderId: order.id,
+                paymentId: paymentResponse.razorpay_payment_id,
+                totalAmount: cartState.total 
+              } 
+            });
+          } catch (error) {
+            console.error('Error processing successful payment:', error);
+            setPaymentError('Payment successful but failed to update order. Please contact support.');
+          } finally {
+            setIsProcessing(false);
+          }
+        },
+        // Error handler
+        async (error: any) => {
+          console.error('Payment failed:', error);
+          
+          // Update order status to failed
+          await orderService.updateOrderStatus(order.id, 'failed');
+          
+          const errorMessage = error.message || 'Payment failed. Please try again.';
+          setPaymentError(errorMessage);
+          
+          // Redirect to payment failure page after a short delay
+          setTimeout(() => {
+            navigate('/payment-failure', {
+              state: {
+                error: errorMessage,
+                orderId: order.id
+              }
+            });
+          }, 2000);
+          
+          setIsProcessing(false);
+        }
+      );
+
     } catch (error) {
       console.error('Checkout error:', error);
       setPaymentError('Checkout failed. Please try again.');
-    } finally {
       setIsProcessing(false);
     }
   };
@@ -556,7 +586,7 @@ const CheckoutForm: React.FC = () => {
                 ) : (
                   <>
                     <CreditCard className="w-5 h-5" />
-                    Pay Now - {paymentService.formatAmount(cartState.total)}
+                    Pay Now - {razorpayService.formatAmount(cartState.total)}
                   </>
                 )}
               </button>
