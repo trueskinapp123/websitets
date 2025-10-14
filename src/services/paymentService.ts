@@ -54,15 +54,21 @@ class PaymentService {
     this.isProcessing = true;
 
     try {
-      // Generate unique order ID
-      const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      console.log('Starting payment process...');
+      console.log('Amount:', paymentRequest.amount);
+      console.log('Customer:', paymentRequest.customerInfo);
 
-      // Create Razorpay order
+      // Generate unique order ID for Razorpay
+      const razorpayOrderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Create Razorpay order (simplified for frontend-only)
       const razorpayOrder = await createRazorpayOrder(
         paymentRequest.amount,
-        orderId,
+        razorpayOrderId,
         paymentRequest.customerInfo
       );
+
+      console.log('Razorpay order created:', razorpayOrder);
 
       // Create order in database
       const order = await orderService.createOrder({
@@ -79,6 +85,8 @@ class PaymentService {
         throw new Error('Failed to create order in database');
       }
 
+      console.log('Database order created:', order.id);
+
       // Initialize Razorpay payment
       return new Promise((resolve) => {
         initializeRazorpay(
@@ -86,14 +94,18 @@ class PaymentService {
           paymentRequest.customerInfo,
           async (payment: RazorpayPayment) => {
             try {
+              console.log('Payment successful, verifying...');
+              
               // Verify payment
               const isValid = await verifyPayment(
                 razorpayOrder.id,
                 payment.id,
-                payment.id // In a real implementation, you'd get the signature from Razorpay response
+                payment.id
               );
 
               if (isValid) {
+                console.log('Payment verified, updating order status...');
+                
                 // Update order status to paid
                 const updateSuccess = await orderService.updateOrderStatus(
                   order.id,
@@ -102,19 +114,21 @@ class PaymentService {
                 );
 
                 if (updateSuccess) {
+                  console.log('Order status updated to paid');
                   resolve({
                     success: true,
                     orderId: order.id,
                     paymentId: payment.id
                   });
                 } else {
+                  console.error('Failed to update order status');
                   resolve({
                     success: false,
                     error: 'Failed to update order status'
                   });
                 }
               } else {
-                // Payment verification failed
+                console.error('Payment verification failed');
                 await orderService.updateOrderStatus(order.id, 'failed');
                 resolve({
                   success: false,

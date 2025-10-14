@@ -1,143 +1,359 @@
+// Email service using Resend API
 import { Resend } from 'resend';
 
-const resend = new Resend(import.meta.env.VITE_RESEND_API_KEY || 'your_resend_api_key');
+// Initialize Resend client
+const resend = new Resend(import.meta.env.VITE_RESEND_API_KEY || '');
 
-export interface OrderEmailData {
-  to: string;
-  subject: string;
-  order: {
-    id: string;
-    customerName: string;
-    customerEmail: string;
-    customerPhone: string;
-    totalAmount: number;
-    shippingAddress: {
-      street: string;
-      city: string;
-      state: string;
-      zip: string;
-    };
-    items: Array<{
-      id: string;
-      orderId: string;
-      productId: string;
-      quantity: number;
-      price: number;
-      createdAt: string;
-    }>;
-    createdAt: string;
-  };
+// Admin email address
+const ADMIN_EMAIL = 'ceo@trueskin.app';
+
+interface OrderItem {
+  id: string;
+  productId: string;
+  quantity: number;
+  price: number;
 }
 
-export const sendOrderConfirmation = async (orderData: OrderEmailData): Promise<boolean> => {
-  try {
-    const { data, error } = await resend.emails.send({
-      from: 'TrueSkin <orders@trueskin.com>',
-      to: [orderData.to],
-      subject: orderData.subject,
-      html: generateOrderEmailHTML(orderData),
-    });
+interface OrderEmailData {
+  id: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  totalAmount: number;
+  shippingAddress: {
+    street: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+  items: OrderItem[];
+  createdAt: string;
+  paymentId?: string;
+  razorpayOrderId?: string;
+}
 
-    if (error) {
-      console.error('Error sending email:', error);
+// Send order confirmation email to admin
+export async function sendOrderConfirmationToAdmin(orderData: OrderEmailData): Promise<boolean> {
+  try {
+    if (!import.meta.env.VITE_RESEND_API_KEY) {
+      console.warn('Resend API key not configured. Email not sent.');
       return false;
     }
 
-    console.log('Order confirmation email sent:', data);
+    // Format order items for email
+    const itemsHtml = orderData.items.map((item, index) => `
+      <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="padding: 12px; text-align: left;">${index + 1}</td>
+        <td style="padding: 12px; text-align: left;">${item.productId}</td>
+        <td style="padding: 12px; text-align: center;">${item.quantity}</td>
+        <td style="padding: 12px; text-align: right;">₹${item.price.toFixed(2)}</td>
+        <td style="padding: 12px; text-align: right;">₹${(item.price * item.quantity).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #b66837 0%, #803716 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+          .order-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+          .detail-label { font-weight: bold; color: #803716; }
+          .detail-value { color: #333; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th { background: #803716; color: white; padding: 12px; text-align: left; }
+          td { padding: 12px; }
+          .total { background: #f3f4f6; font-weight: bold; font-size: 18px; color: #803716; }
+          .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+          .alert { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 28px;">🎉 New Order Received!</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Order #${orderData.id.slice(0, 8).toUpperCase()}</p>
+          </div>
+          
+          <div class="content">
+            <div class="alert">
+              <strong>⚠️ Action Required:</strong> A new order has been placed and payment has been received. Please process this order immediately.
+            </div>
+
+            <div class="order-details">
+              <h2 style="color: #803716; margin-top: 0;">📦 Order Information</h2>
+              
+              <div class="detail-row">
+                <span class="detail-label">Order ID:</span>
+                <span class="detail-value">${orderData.id}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Order Date:</span>
+                <span class="detail-value">${new Date(orderData.createdAt).toLocaleString()}</span>
+              </div>
+              ${orderData.paymentId ? `
+              <div class="detail-row">
+                <span class="detail-label">Payment ID:</span>
+                <span class="detail-value">${orderData.paymentId}</span>
+              </div>
+              ` : ''}
+              ${orderData.razorpayOrderId ? `
+              <div class="detail-row">
+                <span class="detail-label">Razorpay Order ID:</span>
+                <span class="detail-value">${orderData.razorpayOrderId}</span>
+              </div>
+              ` : ''}
+              <div class="detail-row">
+                <span class="detail-label">Total Amount:</span>
+                <span class="detail-value" style="font-size: 20px; font-weight: bold; color: #803716;">₹${orderData.totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div class="order-details">
+              <h2 style="color: #803716; margin-top: 0;">👤 Customer Information</h2>
+              
+              <div class="detail-row">
+                <span class="detail-label">Name:</span>
+                <span class="detail-value">${orderData.customerName}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Email:</span>
+                <span class="detail-value"><a href="mailto:${orderData.customerEmail}">${orderData.customerEmail}</a></span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Phone:</span>
+                <span class="detail-value"><a href="tel:${orderData.customerPhone}">${orderData.customerPhone}</a></span>
+              </div>
+            </div>
+
+            <div class="order-details">
+              <h2 style="color: #803716; margin-top: 0;">📍 Shipping Address</h2>
+              
+              <p style="margin: 0; line-height: 1.8;">
+                ${orderData.shippingAddress.street}<br>
+                ${orderData.shippingAddress.city}, ${orderData.shippingAddress.state}<br>
+                ${orderData.shippingAddress.zip}
+              </p>
+            </div>
+
+            <div class="order-details">
+              <h2 style="color: #803716; margin-top: 0;">🛍️ Order Items</h2>
+              
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Product ID</th>
+                    <th style="text-align: center;">Qty</th>
+                    <th style="text-align: right;">Price</th>
+                    <th style="text-align: right;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsHtml}
+                </tbody>
+                <tfoot>
+                  <tr class="total">
+                    <td colspan="4" style="text-align: right; padding: 15px;">Total Amount:</td>
+                    <td style="text-align: right; padding: 15px;">₹${orderData.totalAmount.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <strong>📋 Next Steps:</strong>
+              <ol style="margin: 10px 0 0 20px; padding: 0;">
+                <li>Review the order details</li>
+                <li>Prepare the products for shipping</li>
+                <li>Update the order status in the dashboard</li>
+                <li>Ship the order to the customer</li>
+              </ol>
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>This is an automated notification from TrueSkin E-commerce Platform</p>
+            <p>© ${new Date().getFullYear()} TrueSkin. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const result = await resend.emails.send({
+      from: 'TrueSkin Orders <orders@trueskin.app>',
+      to: ADMIN_EMAIL,
+      subject: `🎉 New Order #${orderData.id.slice(0, 8).toUpperCase()} - ₹${orderData.totalAmount.toFixed(2)}`,
+      html: emailHtml,
+    });
+
+    if (result.error) {
+      console.error('Error sending email:', result.error);
+      return false;
+    }
+
+    console.log('Order confirmation email sent to admin successfully');
     return true;
   } catch (error) {
-    console.error('Error sending order confirmation email:', error);
+    console.error('Error in sendOrderConfirmationToAdmin:', error);
     return false;
   }
-};
+}
 
-const generateOrderEmailHTML = (orderData: OrderEmailData): string => {
-  const itemsHTML = orderData.order.items.map(item => `
-    <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">Product ID: ${item.productId}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${item.quantity}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">₹${item.price.toFixed(2)}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: bold;">₹${(item.price * item.quantity).toFixed(2)}</td>
-    </tr>
-  `).join('');
+// Send order confirmation email to customer
+export async function sendOrderConfirmationToCustomer(orderData: OrderEmailData): Promise<boolean> {
+  try {
+    if (!import.meta.env.VITE_RESEND_API_KEY) {
+      console.warn('Resend API key not configured. Email not sent.');
+      return false;
+    }
 
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>New Order - TrueSkin</title>
-    </head>
-    <body style="font-family: 'Lato', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <div style="background: linear-gradient(135deg, #306b59 0%, #1e4d3a 100%); padding: 30px; border-radius: 12px; margin-bottom: 30px;">
-        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">New Order Received!</h1>
-        <p style="color: #f3f4f6; margin: 10px 0 0 0; font-size: 16px;">Order #${orderData.order.id}</p>
-      </div>
+    // Format order items for email
+    const itemsHtml = orderData.items.map((item, index) => `
+      <tr style="border-bottom: 1px solid #e5e7eb;">
+        <td style="padding: 12px; text-align: left;">${index + 1}</td>
+        <td style="padding: 12px; text-align: left;">${item.productId}</td>
+        <td style="padding: 12px; text-align: center;">${item.quantity}</td>
+        <td style="padding: 12px; text-align: right;">₹${item.price.toFixed(2)}</td>
+        <td style="padding: 12px; text-align: right;">₹${(item.price * item.quantity).toFixed(2)}</td>
+      </tr>
+    `).join('');
 
-      <div style="background: #f9fafb; padding: 25px; border-radius: 8px; margin-bottom: 25px;">
-        <h2 style="color: #306b59; margin: 0 0 20px 0; font-size: 20px;">Customer Details</h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-          <div>
-            <strong>Name:</strong><br>
-            ${orderData.order.customerName}
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #b66837 0%, #803716 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+          .order-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+          .detail-label { font-weight: bold; color: #803716; }
+          .detail-value { color: #333; }
+          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+          th { background: #803716; color: white; padding: 12px; text-align: left; }
+          td { padding: 12px; }
+          .total { background: #f3f4f6; font-weight: bold; font-size: 18px; color: #803716; }
+          .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
+          .success { background: #d1fae5; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1 style="margin: 0; font-size: 28px;">✨ Order Confirmed!</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Thank you for your order, ${orderData.customerName}!</p>
           </div>
-          <div>
-            <strong>Email:</strong><br>
-            ${orderData.order.customerEmail}
+          
+          <div class="content">
+            <div class="success">
+              <strong>✅ Payment Successful!</strong> Your order has been confirmed and we're preparing it for shipment.
+            </div>
+
+            <div class="order-details">
+              <h2 style="color: #803716; margin-top: 0;">📦 Order Information</h2>
+              
+              <div class="detail-row">
+                <span class="detail-label">Order ID:</span>
+                <span class="detail-value">${orderData.id}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Order Date:</span>
+                <span class="detail-value">${new Date(orderData.createdAt).toLocaleString()}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Total Amount:</span>
+                <span class="detail-value" style="font-size: 20px; font-weight: bold; color: #803716;">₹${orderData.totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div class="order-details">
+              <h2 style="color: #803716; margin-top: 0;">🛍️ Order Items</h2>
+              
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Product ID</th>
+                    <th style="text-align: center;">Qty</th>
+                    <th style="text-align: right;">Price</th>
+                    <th style="text-align: right;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsHtml}
+                </tbody>
+                <tfoot>
+                  <tr class="total">
+                    <td colspan="4" style="text-align: right; padding: 15px;">Total Amount:</td>
+                    <td style="text-align: right; padding: 15px;">₹${orderData.totalAmount.toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div class="order-details">
+              <h2 style="color: #803716; margin-top: 0;">📍 Shipping Address</h2>
+              
+              <p style="margin: 0; line-height: 1.8;">
+                ${orderData.shippingAddress.street}<br>
+                ${orderData.shippingAddress.city}, ${orderData.shippingAddress.state}<br>
+                ${orderData.shippingAddress.zip}
+              </p>
+            </div>
+
+            <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 4px;">
+              <strong>📬 What's Next?</strong>
+              <ul style="margin: 10px 0 0 20px; padding: 0;">
+                <li>We'll send you a tracking number once your order ships</li>
+                <li>You can track your order status in your account</li>
+                <li>Expected delivery: 3-5 business days</li>
+              </ul>
+            </div>
           </div>
-          <div>
-            <strong>Phone:</strong><br>
-            ${orderData.order.customerPhone}
-          </div>
-          <div>
-            <strong>Order Date:</strong><br>
-            ${new Date(orderData.order.createdAt).toLocaleDateString()}
+
+          <div class="footer">
+            <p>Thank you for shopping with TrueSkin!</p>
+            <p>If you have any questions, please contact us at ceo@trueskin.app</p>
+            <p>© ${new Date().getFullYear()} TrueSkin. All rights reserved.</p>
           </div>
         </div>
-        
-        <div style="margin-top: 15px;">
-          <strong>Shipping Address:</strong><br>
-          ${orderData.order.shippingAddress.street}<br>
-          ${orderData.order.shippingAddress.city}, ${orderData.order.shippingAddress.state} ${orderData.order.shippingAddress.zip}
-        </div>
-      </div>
+      </body>
+      </html>
+    `;
 
-      <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; margin-bottom: 25px;">
-        <h2 style="color: #306b59; margin: 0; padding: 20px; background: #f9fafb; border-bottom: 1px solid #e5e7eb;">Order Items</h2>
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr style="background: #f3f4f6;">
-              <th style="padding: 12px; text-align: left; font-weight: bold; color: #374151;">Product</th>
-              <th style="padding: 12px; text-align: center; font-weight: bold; color: #374151;">Qty</th>
-              <th style="padding: 12px; text-align: right; font-weight: bold; color: #374151;">Price</th>
-              <th style="padding: 12px; text-align: right; font-weight: bold; color: #374151;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHTML}
-          </tbody>
-        </table>
-      </div>
+    const result = await resend.emails.send({
+      from: 'TrueSkin Orders <orders@trueskin.app>',
+      to: orderData.customerEmail,
+      subject: `Order Confirmation #${orderData.id.slice(0, 8).toUpperCase()} - TrueSkin`,
+      html: emailHtml,
+    });
 
-      <div style="background: #f9fafb; padding: 25px; border-radius: 8px; text-align: right;">
-        <div style="font-size: 24px; font-weight: bold; color: #306b59;">
-          Total Amount: ₹${orderData.order.totalAmount.toFixed(2)}
-        </div>
-        <div style="color: #6b7280; margin-top: 5px;">
-          Payment Status: <span style="color: #059669; font-weight: bold;">PENDING</span>
-        </div>
-      </div>
+    if (result.error) {
+      console.error('Error sending email:', result.error);
+      return false;
+    }
 
-      <div style="text-align: center; margin-top: 30px; padding: 20px; background: #f3f4f6; border-radius: 8px;">
-        <p style="margin: 0; color: #6b7280; font-size: 14px;">
-          This order was placed through the TrueSkin website.<br>
-          Please process and ship the order as soon as possible.
-        </p>
-      </div>
-    </body>
-    </html>
-  `;
-};
+    console.log('Order confirmation email sent to customer successfully');
+    return true;
+  } catch (error) {
+    console.error('Error in sendOrderConfirmationToCustomer:', error);
+    return false;
+  }
+}
 
-export default resend;
+// Legacy function for backward compatibility
+export async function sendOrderConfirmation(data: { to: string; subject: string; order: OrderEmailData }): Promise<boolean> {
+  if (data.to === ADMIN_EMAIL) {
+    return await sendOrderConfirmationToAdmin(data.order);
+  } else {
+    return await sendOrderConfirmationToCustomer(data.order);
+  }
+}

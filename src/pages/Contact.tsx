@@ -35,7 +35,7 @@ const Contact = () => {
     {
       icon: <Mail className="w-6 h-6" />,
       title: "Email Us",
-      details: "support@trueskin.app",
+      details: "ceo@trueskin.app",
       description: "Send us an email anytime"
     },
     {

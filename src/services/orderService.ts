@@ -311,24 +311,22 @@ export const orderService = {
   // Send order confirmation email to admin
   async sendOrderConfirmationEmail(order: Order, orderItems: OrderItem[]): Promise<boolean> {
     try {
-      const { sendOrderConfirmation } = await import('../lib/email');
+      const { sendOrderConfirmationToAdmin } = await import('../lib/email');
       
       const emailData = {
-        to: 'amaamafatima67@gmail.com',
-        subject: 'New Order Received - TrueSkin',
-        order: {
-          id: order.id,
-          customerName: order.customerName,
-          customerEmail: order.customerEmail,
-          customerPhone: order.customerPhone,
-          totalAmount: order.totalAmount,
-          shippingAddress: order.shippingAddress,
-          items: orderItems,
-          createdAt: order.createdAt
-        }
+        id: order.id,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        totalAmount: order.totalAmount,
+        shippingAddress: order.shippingAddress,
+        items: orderItems,
+        createdAt: order.createdAt,
+        paymentId: order.paymentId,
+        razorpayOrderId: order.razorpayOrderId
       };
 
-      return await sendOrderConfirmation(emailData);
+      return await sendOrderConfirmationToAdmin(emailData);
     } catch (error) {
       console.error('Error sending order confirmation email:', error);
       return false;
@@ -338,24 +336,22 @@ export const orderService = {
   // Send order confirmation email to customer
   async sendCustomerOrderConfirmation(order: Order, orderItems: OrderItem[]): Promise<boolean> {
     try {
-      const { sendOrderConfirmation } = await import('../lib/email');
+      const { sendOrderConfirmationToCustomer } = await import('../lib/email');
       
       const emailData = {
-        to: order.customerEmail,
-        subject: 'Order Confirmation - TrueSkin',
-        order: {
-          id: order.id,
-          customerName: order.customerName,
-          customerEmail: order.customerEmail,
-          customerPhone: order.customerPhone,
-          totalAmount: order.totalAmount,
-          shippingAddress: order.shippingAddress,
-          items: orderItems,
-          createdAt: order.createdAt
-        }
+        id: order.id,
+        customerName: order.customerName,
+        customerEmail: order.customerEmail,
+        customerPhone: order.customerPhone,
+        totalAmount: order.totalAmount,
+        shippingAddress: order.shippingAddress,
+        items: orderItems,
+        createdAt: order.createdAt,
+        paymentId: order.paymentId,
+        razorpayOrderId: order.razorpayOrderId
       };
 
-      return await sendOrderConfirmation(emailData);
+      return await sendOrderConfirmationToCustomer(emailData);
     } catch (error) {
       console.error('Error sending customer order confirmation email:', error);
       return false;

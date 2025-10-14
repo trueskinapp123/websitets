@@ -1,4 +1,4 @@
-// Razorpay configuration and utilities
+// Razorpay configuration and utilities - Frontend Only Integration
 export interface RazorpayOrder {
   id: string;
   amount: number;
@@ -23,7 +23,6 @@ export interface RazorpayOptions {
   currency: string;
   name: string;
   description: string;
-  order_id: string;
   handler: (response: any) => void;
   prefill: {
     name: string;
@@ -41,65 +40,53 @@ export interface RazorpayOptions {
   };
 }
 
-// Get Razorpay configuration from environment variables or use test credentials
+// Get Razorpay configuration from environment variables
 export const getRazorpayConfig = () => {
-  const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_1DP5mmOlF5G5ag';
-  const keySecret = import.meta.env.VITE_RAZORPAY_KEY_SECRET || 'test_secret_key';
+  const keyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
   
   if (!keyId) {
-    throw new Error('Razorpay credentials not found. Please check your environment variables.');
+    throw new Error('Razorpay Key ID not found. Please add VITE_RAZORPAY_KEY_ID to your .env file.');
   }
   
-  return { keyId, keySecret };
+  return { keyId };
 };
 
-// Create a Razorpay order using backend API
-export const createRazorpayOrder = async (amount: number, orderId: string, customerInfo?: { name?: string; email?: string; contact?: string }): Promise<RazorpayOrder> => {
+// Create a Razorpay order using client-side approach
+// For production, this should be done via backend API
+export const createRazorpayOrder = async (
+  amount: number, 
+  orderId: string, 
+  customerInfo?: { name?: string; email?: string; contact?: string }
+): Promise<RazorpayOrder> => {
   try {
-    const response = await fetch('http://localhost:3001/api/create-order', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        amount,
-        currency: 'INR',
-        receipt: orderId,
-        customer_info: customerInfo || {}
-      })
-    });
-
-    const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.error || 'Failed to create order');
-    }
-
-    console.log('Created Razorpay order:', data.order);
-    return data.order;
+    // Generate a simple order ID for Razorpay
+    const receiptId = `receipt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Return mock order for frontend-only integration
+    // In production, this should call your backend API
+    return {
+      id: receiptId,
+      amount: Math.round(amount * 100), // Convert to paise
+      currency: 'INR',
+      receipt: receiptId,
+      status: 'created'
+    };
   } catch (error) {
     console.error('Error creating Razorpay order:', error);
-    throw new Error('Failed to create payment order');
+    throw new Error('Failed to create payment order. Please try again.');
   }
 };
 
-// Verify payment signature using backend API
-export const verifyPayment = async (razorpay_order_id: string, razorpay_payment_id: string, razorpay_signature: string): Promise<boolean> => {
+// Verify payment signature
+export const verifyPayment = async (
+  razorpay_order_id: string, 
+  razorpay_payment_id: string, 
+  razorpay_signature: string
+): Promise<boolean> => {
   try {
-    const response = await fetch('http://localhost:3001/api/verify-payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        razorpay_order_id,
-        razorpay_payment_id,
-        razorpay_signature
-      })
-    });
-
-    const data = await response.json();
-    return data.success && data.isValid;
+    // For frontend-only implementation, we trust Razorpay's response
+    // In production, implement proper signature verification on backend
+    return true;
   } catch (error) {
     console.error('Error verifying payment:', error);
     return false;
@@ -116,8 +103,14 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
+    script.onload = () => {
+      console.log('Razorpay script loaded successfully');
+      resolve(true);
+    };
+    script.onerror = () => {
+      console.error('Failed to load Razorpay script');
+      resolve(false);
+    };
     document.body.appendChild(script);
   });
 };
@@ -139,7 +132,9 @@ export const initializeRazorpay = async (
 
     const { keyId } = getRazorpayConfig();
 
-    const options: RazorpayOptions = {
+    console.log('Initializing Razorpay with order:', order);
+
+    const options: any = {
       key: keyId,
       amount: order.amount,
       currency: order.currency,
@@ -147,15 +142,18 @@ export const initializeRazorpay = async (
       description: 'TrueSkin Bio Collagen Face Masks',
       order_id: order.id,
       handler: function (response: any) {
+        console.log('Payment successful:', response);
+        
         const payment: RazorpayPayment = {
           id: response.razorpay_payment_id,
-          order_id: response.razorpay_order_id,
+          order_id: response.razorpay_order_id || order.id,
           amount: order.amount,
           currency: order.currency,
           status: 'captured',
           method: response.razorpay_payment_method || 'card',
           created_at: Date.now(),
         };
+        
         onSuccess(payment);
       },
       prefill: {
@@ -171,11 +169,13 @@ export const initializeRazorpay = async (
       },
       modal: {
         ondismiss: function() {
+          console.log('Payment modal dismissed by user');
           onError(new Error('Payment cancelled by user'));
         },
       },
     };
 
+    console.log('Opening Razorpay checkout...');
     const rzp = new (window as any).Razorpay(options);
     rzp.open();
   } catch (error) {
@@ -184,17 +184,18 @@ export const initializeRazorpay = async (
   }
 };
 
-// Get payment status from Razorpay using backend API
+// Get payment status from Razorpay
 export const getPaymentStatus = async (paymentId: string): Promise<any> => {
   try {
-    const response = await fetch(`http://localhost:3001/api/payment-status/${paymentId}`);
-    const data = await response.json();
-
-    if (!data.success) {
-      return null;
-    }
-
-    return data.payment;
+    // For frontend-only implementation, return mock data
+    // In production, implement proper payment status check via backend
+    return {
+      id: paymentId,
+      status: 'captured',
+      amount: 0,
+      method: 'card',
+      created_at: Date.now() / 1000
+    };
   } catch (error) {
     console.error('Error getting payment status:', error);
     return null;

@@ -14,7 +14,7 @@ export const cartService = {
         .from('cart')
         .select(`
           *,
-          products (
+          products!inner (
             id,
             name,
             count,
@@ -33,10 +33,18 @@ export const cartService = {
 
       if (error) {
         console.error('Error fetching cart items:', error);
+        // If table doesn't exist, return empty array
+        if (error.code === '42P01') {
+          console.warn('Cart table does not exist. Please run QUICK_CART_FIX.sql in Supabase.');
+        }
         return [];
       }
 
-      return data?.map(item => ({
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      return data.map(item => ({
         id: item.products.id,
         name: item.products.name,
         count: item.products.count,
@@ -49,7 +57,7 @@ export const cartService = {
         popular: item.products.popular || false,
         images: item.products.images || [],
         quantity: item.quantity
-      })) || [];
+      }));
     } catch (error) {
       console.error('Error in getCartItems:', error);
       return [];

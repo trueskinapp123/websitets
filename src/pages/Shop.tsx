@@ -27,11 +27,18 @@ const Shop = () => {
   };
 
   const handleAddToCart = async (product: Product) => {
+    // Check if user is authenticated
+    if (!state.isAuthenticated) {
+      alert('Please sign in to add items to your cart');
+      return;
+    }
+    
     const success = await addToCart(product);
     if (success) {
       console.log('Product added to cart successfully');
     } else {
       console.log('Failed to add product to cart');
+      alert('Failed to add product to cart. Please try again.');
     }
   };
 
@@ -126,25 +133,25 @@ const Shop = () => {
               </p>
             </div>
           ) : (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {products.map((product, index) => (
               <div
                 key={index}
                 className="group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-500 transform hover:scale-[1.02] overflow-hidden border-2 cursor-pointer"
               >
                 {product.popular && (
-                  <div className="absolute top-4 left-4 bg-[#e58f5a] text-white px-4 py-2 rounded-full font-lato font-semibold text-sm z-10">
+                  <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-[#e58f5a] text-white px-2 sm:px-4 py-1 sm:py-2 rounded-full font-lato font-semibold text-xs sm:text-sm z-10">
                     Most Popular
                   </div>
                 )}
                 
                 {/* Discount Badge */}
-                <div className="absolute top-4 right-4 bg-[#b66837] text-white px-3 py-1 rounded-full font-lato font-semibold text-xs">
+                <div className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-[#b66837] text-white px-2 sm:px-3 py-1 rounded-full font-lato font-semibold text-xs">
                   {product.discount}
                 </div>
 
                 {/* Product Image */}
-                <div className="relative h-64 overflow-hidden">
+                <div className="relative h-48 sm:h-56 lg:h-64 overflow-hidden">
                   <OptimizedImage
                     src={product.images[0] || '/images/placeholder.jpg'}
                     alt={product.name}
@@ -154,25 +161,25 @@ const Shop = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                 </div>
 
-                <div className="p-6">
-                  <h3 className="font-playfair text-2xl font-bold text-[#803716] mb-2">
+                <div className="p-4 sm:p-6">
+                  <h3 className="font-playfair text-xl sm:text-2xl font-bold text-[#803716] mb-2">
                     {product.name}
                   </h3>
-                  <p className="font-lato text-sm text-[#b66837] font-medium mb-3">
+                  <p className="font-lato text-xs sm:text-sm text-[#b66837] font-medium mb-3">
                     {product.count}
                   </p>
                   
-                  <p className="font-lato text-gray-600 mb-4 line-clamp-3">
+                  <p className="font-lato text-gray-600 mb-4 line-clamp-2 sm:line-clamp-3 text-sm">
                     {product.description}
                   </p>
                   
                   {/* Rating */}
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex flex-wrap items-center gap-2 mb-4">
                     <div className="flex items-center">
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
-                          className={`w-4 h-4 ${
+                          className={`w-3 h-3 sm:w-4 sm:h-4 ${
                             i < Math.floor(product.rating)
                               ? 'text-[#e58f5a] fill-current'
                               : 'text-gray-300'
@@ -180,17 +187,17 @@ const Shop = () => {
                         />
                       ))}
                     </div>
-                    <span className="font-lato text-sm text-gray-600">
+                    <span className="font-lato text-xs sm:text-sm text-gray-600">
                       {product.rating} ({product.reviews} reviews)
                     </span>
                   </div>
 
                   {/* Pricing */}
-                  <div className="flex items-center gap-3 mb-6">
-                    <span className="font-playfair text-2xl font-bold text-[#803716]">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                    <span className="font-playfair text-xl sm:text-2xl font-bold text-[#803716]">
                       ₹{product.price}
                     </span>
-                    <span className="font-lato text-sm text-gray-500 line-through">
+                    <span className="font-lato text-xs sm:text-sm text-gray-500 line-through">
                       ₹{product.originalPrice}
                     </span>
                     <span className="font-lato text-xs text-[#b66837] font-medium">
@@ -199,18 +206,19 @@ const Shop = () => {
                   </div>
 
                   {/* CTA Buttons */}
-                  <div className="flex gap-3">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button
                       onClick={() => handleProductClick(product)}
-                      className="flex-1 bg-[#e58f5a] hover:bg-[#b66837] text-white px-4 py-3 rounded-full font-lato font-semibold text-sm transition-all duration-300 transform hover:scale-105"
+                      className="flex-1 bg-[#e58f5a] hover:bg-[#b66837] text-white px-4 py-2.5 sm:py-3 rounded-full font-lato font-semibold text-xs sm:text-sm transition-all duration-300 transform hover:scale-105"
                     >
                       View Details
                     </button>
                     <button
                       onClick={() => handleAddToCart(product)}
-                      className="bg-[#b66837] hover:bg-[#803716] text-white px-4 py-3 rounded-full font-lato font-semibold text-sm transition-all duration-300 transform hover:scale-105 flex items-center gap-2"
+                      className="bg-[#b66837] hover:bg-[#803716] text-white px-4 py-2.5 sm:py-3 rounded-full font-lato font-semibold text-xs sm:text-sm transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
                     >
                       <ShoppingCart className="w-4 h-4" />
+                      <span className="sm:hidden">Add</span>
                     </button>
                   </div>
                 </div>
