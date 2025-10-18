@@ -64,7 +64,7 @@ const RazorpayPayment = ({
       // Check if Razorpay credentials are available
       const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
       if (!razorpayKeyId) {
-        throw new Error('Razorpay Key ID not found. Please add VITE_RAZORPAY_KEY_ID to your .env.local file.');
+        throw new Error('Razorpay Key ID not found. Please add VITE_RAZORPAY_KEY_ID to your .env file.');
       }
       
       const isScriptLoaded = await loadRazorpayScript();
