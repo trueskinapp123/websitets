@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
-import { paymentService } from '../services/paymentService';
-import { orderService } from '../services/orderService';
+import RazorpayPayment from './RazorpayPayment';
 import { CreditCard, MapPin, User, Mail, Phone, ShoppingBag, ArrowLeft, Shield, Clock, CheckCircle } from 'lucide-react';
 
 interface FormData {
@@ -20,6 +19,9 @@ const CheckoutForm: React.FC = () => {
   const { state: cartState, clearCart } = useCart();
   const { user, profile, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
+
+  console.log('CheckoutForm - cartState:', cartState);
+  console.log('CheckoutForm - user:', user);
   
   const [formData, setFormData] = useState<FormData>({
     fullName: profile?.fullName || '',
@@ -98,127 +100,6 @@ const CheckoutForm: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePayment = async () => {
-    if (!validateForm()) {
-      return;
-    }
-
-    if (cartState.items.length === 0) {
-      setPaymentError('Your cart is empty!');
-      return;
-    }
-
-    // Check if user is logged in
-    if (!user) {
-      setPaymentError('Please log in to place an order.');
-      return;
-    }
-
-    // Validate payment amount
-    if (!paymentService.validatePaymentAmount(cartState.total)) {
-      setPaymentError('Invalid payment amount. Please check your cart.');
-      return;
-    }
-
-    setIsProcessing(true);
-    setPaymentError('');
-
-    try {
-      // Create order first
-      const orderData = {
-        userId: user.id,
-        customerName: formData.fullName,
-        customerEmail: formData.email,
-        customerPhone: formData.phone,
-        shippingAddress: {
-          street: formData.street,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip,
-        },
-        cartItems: cartState.items,
-      };
-
-      const order = await orderService.createOrder(orderData);
-
-      if (!order) {
-        setPaymentError('Failed to create order. Please try again.');
-        return;
-      }
-
-      // Process payment
-      const paymentRequest = {
-        amount: cartState.total,
-        customerInfo: {
-          name: formData.fullName,
-          email: formData.email,
-          contact: formData.phone,
-        },
-        shippingAddress: {
-          street: formData.street,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip,
-        },
-        cartItems: cartState.items,
-        userId: user.id,
-        orderId: order.id,
-      };
-
-      const paymentResponse = await paymentService.processPayment(paymentRequest);
-
-      if (paymentResponse.success && paymentResponse.paymentId) {
-        // Update order with payment details
-        await orderService.updateOrderStatus(order.id, 'paid', paymentResponse.paymentId);
-
-        // Get order items for email
-        const orderItems = await orderService.getOrderItems(order.id);
-
-        // Send email notification
-        try {
-          await orderService.sendOrderConfirmationEmail(order, orderItems);
-        } catch (emailError) {
-          console.error('Failed to send email notification:', emailError);
-          // Don't fail the payment for email errors
-        }
-
-        // Clear cart
-        await orderService.clearUserCart(user.id);
-        await clearCart();
-
-        // Redirect to success page
-        navigate('/order-success', { 
-          state: { 
-            orderId: order.id,
-            paymentId: paymentResponse.paymentId,
-            totalAmount: cartState.total 
-          } 
-        });
-      } else {
-        // Update order status to failed
-        await orderService.updateOrderStatus(order.id, 'failed');
-        
-        const errorMessage = paymentResponse.error || 'Payment failed. Please try again.';
-        setPaymentError(errorMessage);
-        
-        // Redirect to payment failure page after a short delay
-        setTimeout(() => {
-          navigate('/payment-failure', {
-            state: {
-              error: errorMessage,
-              orderId: order.id
-            }
-          });
-        }, 2000);
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      setPaymentError('Checkout failed. Please try again.');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   if (cartState.items.length === 0) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
@@ -226,6 +107,16 @@ const CheckoutForm: React.FC = () => {
           <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-2xl font-playfair font-bold text-[#306b59] mb-4">Your cart is empty</h2>
           <p className="text-gray-600 mb-6">Add some products to your cart before checkout.</p>
+          
+          {/* Debug Information */}
+          <div className="mb-6 p-4 bg-gray-100 rounded-lg text-left max-w-md mx-auto">
+            <h3 className="font-semibold mb-2">Debug Info:</h3>
+            <p className="text-sm">Cart Items: {cartState.items.length}</p>
+            <p className="text-sm">Is Authenticated: {cartState.isAuthenticated ? 'Yes' : 'No'}</p>
+            <p className="text-sm">User: {user ? user.email : 'Not logged in'}</p>
+            <p className="text-sm">Is Loading: {cartState.isLoading ? 'Yes' : 'No'}</p>
+          </div>
+          
           <button
             onClick={() => navigate('/shop')}
             className="bg-[#306b59] hover:bg-[#306b59] text-white px-6 py-3 rounded-full font-lato font-semibold transition-all duration-300"
@@ -251,6 +142,16 @@ const CheckoutForm: React.FC = () => {
           </button>
           <h1 className="text-3xl font-playfair font-bold text-[#306b59]">Checkout</h1>
           <p className="text-gray-600 mt-2">Complete your order securely</p>
+          
+          {/* Debug Information */}
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="font-semibold mb-2 text-blue-800">Debug Info:</h3>
+            <p className="text-sm text-blue-700">Cart Items: {cartState.items.length}</p>
+            <p className="text-sm text-blue-700">Total: ₹{cartState.total.toFixed(2)}</p>
+            <p className="text-sm text-blue-700">Is Authenticated: {cartState.isAuthenticated ? 'Yes' : 'No'}</p>
+            <p className="text-sm text-blue-700">User: {user ? user.email : 'Not logged in'}</p>
+            <p className="text-sm text-blue-700">Is Loading: {cartState.isLoading ? 'Yes' : 'No'}</p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
@@ -529,37 +430,60 @@ const CheckoutForm: React.FC = () => {
                       We accept:
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {paymentService.getSupportedPaymentMethods().map((method) => (
-                        <span
-                          key={method}
-                          className="px-2 py-1 bg-white text-xs text-gray-700 rounded border"
-                        >
-                          {method.toUpperCase()}
-                        </span>
-                      ))}
+                      <span className="px-2 py-1 bg-white text-xs text-gray-700 rounded border">
+                        CREDIT CARD
+                      </span>
+                      <span className="px-2 py-1 bg-white text-xs text-gray-700 rounded border">
+                        DEBIT CARD
+                      </span>
+                      <span className="px-2 py-1 bg-white text-xs text-gray-700 rounded border">
+                        UPI
+                      </span>
+                      <span className="px-2 py-1 bg-white text-xs text-gray-700 rounded border">
+                        NET BANKING
+                      </span>
                     </div>
                   </div>
                 )}
               </div>
 
               {/* Payment Button */}
-              <button
-                onClick={handlePayment}
-                disabled={isProcessing || paymentService.isPaymentProcessing()}
-                className="w-full bg-[#306b59] hover:bg-[#306b59] disabled:bg-gray-400 text-white px-6 py-4 rounded-full font-lato font-semibold text-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Processing Payment...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-5 h-5" />
-                    Pay Now - {paymentService.formatAmount(cartState.total)}
-                  </>
-                )}
-              </button>
+              <RazorpayPayment
+                amount={cartState.total}
+                orderId=""
+                customerEmail={formData.email}
+                customerPhone={formData.phone}
+                customerName={formData.fullName}
+                shippingAddress={{
+                  street: formData.street,
+                  city: formData.city,
+                  state: formData.state,
+                  zip: formData.zip,
+                }}
+                items={cartState.items.map(item => ({
+                  productId: item.id,
+                  quantity: item.quantity,
+                  price: item.price,
+                }))}
+                onSuccess={(transactionId) => {
+                  console.log('Payment successful:', transactionId);
+                  // Clear cart
+                  clearCart();
+                  // Redirect to success page
+                  navigate('/order-success', { 
+                    state: { 
+                      orderId: `order_${Date.now()}`,
+                      paymentId: transactionId,
+                      totalAmount: cartState.total 
+                    } 
+                  });
+                }}
+                onError={(error) => {
+                  console.error('Payment failed:', error);
+                  setPaymentError(error);
+                }}
+                disabled={isProcessing || !validateForm() || cartState.items.length === 0}
+              />
 
               {/* Payment Info */}
               <div className="mt-4 text-center">
