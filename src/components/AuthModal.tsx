@@ -83,6 +83,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 's
 
     try {
       const { error } = await signInWithGoogle();
+      
       if (error) {
         setError(error.message || 'Failed to sign in with Google');
       } else {

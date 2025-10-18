@@ -33,225 +33,219 @@ declare global {
   }
 }
 
-const RazorpayPayment = ({ 
-  amount, 
-  orderId, 
+const RazorpayPayment = ({
+  amount,
   customerEmail,
   customerPhone,
   customerName,
   shippingAddress,
   items,
-  onSuccess, 
-  onError, 
-  disabled = false 
+  onSuccess,
+  onError,
+  disabled = false,
 }: RazorpayPaymentProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      // Check if script already exists
-      if (window.Razorpay) {
-        resolve(true);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+  const loadRazorpayScript = () =>
+    new Promise((resolve) => {
+      if (window.Razorpay) return resolve(true);
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
       script.onload = () => resolve(true);
       script.onerror = () => resolve(false);
       document.body.appendChild(script);
     });
-  };
 
   const initiatePayment = async () => {
     setIsProcessing(true);
     
     try {
-      console.log('Starting payment process...');
-      
-      // Load Razorpay script
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) {
-        throw new Error('Failed to load Razorpay SDK');
+      // Check if Razorpay credentials are available
+      const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (!razorpayKeyId) {
+        throw new Error('Razorpay Key ID not found. Please add VITE_RAZORPAY_KEY_ID to your .env.local file.');
       }
+      
+      const isScriptLoaded = await loadRazorpayScript();
+      if (!isScriptLoaded) throw new Error("Failed to load Razorpay SDK");
 
-      console.log('Razorpay script loaded successfully');
+      const generatedOrderId = `order_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
-      // Create a simple order ID for Razorpay
-      const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      console.log('Generated order ID:', orderId);
-
-      // Create Razorpay order using our existing function
-      const razorpayOrder = await createRazorpayOrder({
-        amount: amount * 100, // Convert to paise
-        currency: 'INR',
-        receipt: order.id,
+      // Create order via backend API
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const orderResponse = await fetch(`${apiUrl}/api/create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: amount,
+          currency: 'INR',
+          receipt: generatedOrderId
+        })
       });
 
-      console.log('Razorpay order created:', razorpayOrder);
+      const orderData = await orderResponse.json();
 
-      // Prepare customer info for Razorpay
+      if (!orderData.success) {
+        throw new Error(orderData.error || 'Failed to create order');
+      }
+
       const customerInfo = {
-        name: customerName,
-        email: customerEmail,
-        contact: customerPhone,
-      };
-
-      // Prepare order details for email
-      const orderDetails = {
-        id: orderId,
-        customerName,
-        customerEmail,
-        customerPhone,
-        totalAmount: amount,
-        shippingAddress,
-        items,
-        createdAt: new Date().toISOString(),
-        paymentId: '', // Will be filled after payment
-        razorpayOrderId: razorpayOrder.id,
+        name: customerName || 'Customer',
+        email: customerEmail || 'customer@example.com',
+        contact: customerPhone || '9999999999',
       };
 
       // Initialize Razorpay checkout
-      await initializeRazorpay(
-        razorpayOrder,
-        customerInfo,
-        async (payment) => {
-          console.log('Payment successful:', payment);
-          
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: 'TrueSkin',
+        description: 'TrueSkin Bio Collagen Face Masks',
+        order_id: orderData.order.id,
+        handler: async function (response: any) {
           try {
-            // Create order in database after successful payment
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-              try {
-                const { error: insertError } = await supabase
-                  .from('orders')
-                  .insert({
-                    id: orderId,
-                    user_id: user.id,
-                    customer_name: customerName,
-                    customer_email: customerEmail,
-                    customer_phone: customerPhone,
-                    total_amount: amount,
-                    status: 'paid',
-                    shipping_address: shippingAddress,
-                    payment_id: payment.id,
-                    razorpay_order_id: payment.order_id,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                  });
+            // Verify payment with backend
+            const verifyResponse = await fetch(`${apiUrl}/api/verify-payment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
 
-                if (insertError) {
-                  console.error('Error creating order:', insertError);
-                } else {
-                  console.log('Order created successfully in database');
-                  
-                  // Create order items
-                  const orderItems = items.map(item => ({
-                    order_id: orderId,
-                    product_id: item.productId,
-                    quantity: item.quantity,
-                    price: item.price,
-                    created_at: new Date().toISOString(),
-                  }));
+            const verifyData = await verifyResponse.json();
 
-                  const { error: itemsError } = await supabase
-                    .from('order_items')
-                    .insert(orderItems);
-
-                  if (itemsError) {
-                    console.error('Error creating order items:', itemsError);
-                  } else {
-                    console.log('Order items created successfully');
-                  }
-                }
-              } catch (error) {
-                console.error('Error creating order:', error);
-              }
+            if (!verifyData.success) {
+              throw new Error(verifyData.error || 'Payment verification failed');
             }
 
-            // Update order details with payment ID
-            orderDetails.paymentId = payment.id;
+            // Save order to database
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+              // Insert order into Supabase
+              const { error: insertError } = await supabase.from("orders").insert({
+                id: generatedOrderId,
+                user_id: user.id,
+                customer_name: customerName,
+                customer_email: customerEmail,
+                customer_phone: customerPhone,
+                total_amount: amount,
+                status: "paid",
+                shipping_address: shippingAddress,
+                payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+
+              if (insertError) throw insertError;
+
+              // Insert order items
+              const orderItems = items.map((item) => ({
+                order_id: generatedOrderId,
+                product_id: item.productId,
+                quantity: item.quantity,
+                price: item.price,
+                created_at: new Date().toISOString(),
+              }));
+
+              const { error: itemsError } = await supabase
+                .from("order_items")
+                .insert(orderItems);
+
+              if (itemsError) throw itemsError;
+
+              // Clear cart after success
+              await supabase.from("cart").delete().eq("user_id", user.id);
+            }
 
             // Send confirmation emails
-            console.log('Sending confirmation emails...');
-            
-            const [adminEmailSent, customerEmailSent] = await Promise.all([
-              sendOrderConfirmationToAdmin(orderDetails),
-              sendOrderConfirmationToCustomer(orderDetails)
+            const emailData = {
+              id: generatedOrderId,
+              customerName,
+              customerEmail,
+              customerPhone,
+              totalAmount: amount,
+              shippingAddress,
+              items: items.map(item => ({
+                id: item.productId,
+                productId: item.productId,
+                quantity: item.quantity,
+                price: item.price
+              })),
+              createdAt: new Date().toISOString(),
+              paymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id
+            };
+
+            await Promise.all([
+              sendOrderConfirmationToAdmin(emailData),
+              sendOrderConfirmationToCustomer(emailData),
             ]);
 
-            if (adminEmailSent) {
-              console.log('Admin confirmation email sent successfully');
-            } else {
-              console.warn('Failed to send admin confirmation email');
-            }
-
-            if (customerEmailSent) {
-              console.log('Customer confirmation email sent successfully');
-            } else {
-              console.warn('Failed to send customer confirmation email');
-            }
-
-            // Clear cart after successful payment
-            if (user) {
-              const { error: cartError } = await supabase
-                .from('cart')
-                .delete()
-                .eq('user_id', user.id);
-
-              if (cartError) {
-                console.warn('Failed to clear cart:', cartError);
-              } else {
-                console.log('Cart cleared successfully');
-              }
-            }
-
             toast({
-              title: "Payment Successful!",
-              description: "Your payment has been processed successfully. Confirmation emails have been sent.",
+              title: "Payment Successful 🎉",
+              description:
+                "Your payment was successful! Confirmation emails have been sent.",
             });
 
-            onSuccess(payment.id);
-
+            onSuccess(response.razorpay_payment_id);
           } catch (error) {
-            console.error('Post-payment processing failed:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Payment processing failed';
-            
             toast({
-              title: "Payment Processing Error",
-              description: "Payment was successful but there was an error processing your order. Please contact support.",
+              title: "Order Processing Error",
+              description:
+                "Payment succeeded but there was an issue saving your order. Please contact support.",
               variant: "destructive",
             });
-            
-            onError(errorMessage);
+            onError("Order processing failed");
           }
         },
-        (error) => {
-          console.error('Payment failed:', error);
-          const errorMessage = error instanceof Error ? error.message : 'Payment failed';
-          
-          toast({
-            title: "Payment Failed",
-            description: errorMessage,
-            variant: "destructive",
-          });
-          
-          onError(errorMessage);
-        }
-      );
+        prefill: {
+          name: customerInfo.name,
+          email: customerInfo.email,
+          contact: customerInfo.contact,
+        },
+        notes: {
+          address: 'TrueSkin Office, India',
+        },
+        theme: {
+          color: '#306b59',
+        },
+        modal: {
+          ondismiss: function() {
+            onError('Payment cancelled by user');
+          },
+        },
+        retry: {
+          enabled: true,
+          max_count: 3,
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
 
     } catch (error) {
-      console.error('Payment initiation failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Payment failed to initiate';
-      
       toast({
-        title: "Payment Failed",
-        description: errorMessage,
+        title: "Payment Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Unable to initiate payment. Please try again.",
         variant: "destructive",
       });
-      
-      onError(errorMessage);
+      onError("Payment initiation failed");
     } finally {
       setIsProcessing(false);
     }
@@ -261,7 +255,7 @@ const RazorpayPayment = ({
     <button
       onClick={initiatePayment}
       disabled={disabled || isProcessing}
-      className="w-full bg-[#306b59] hover:bg-[#306b59] disabled:bg-gray-400 text-white px-6 py-4 rounded-full font-lato font-semibold text-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
+      className="w-full bg-[#306b59] hover:bg-[#3b7a65] disabled:bg-gray-400 text-white px-6 py-4 rounded-full font-lato font-semibold text-lg transition-all duration-300 transform hover:scale-105 disabled:transform-none flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
     >
       {isProcessing ? (
         <>
@@ -271,7 +265,7 @@ const RazorpayPayment = ({
       ) : (
         <>
           <CreditCard className="h-5 w-5" />
-          Pay ₹{amount} with Razorpay
+          Pay Now - ₹{amount}
         </>
       )}
     </button>

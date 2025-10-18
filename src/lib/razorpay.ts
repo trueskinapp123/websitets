@@ -62,17 +62,23 @@ export const createRazorpayOrder = async (
     // Generate a simple order ID for Razorpay
     const receiptId = `receipt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Return mock order for frontend-only integration
+    // Validate amount
+    if (amount <= 0) {
+      throw new Error('Invalid amount for payment');
+    }
+    
+    // Return order for frontend-only integration
     // In production, this should call your backend API
-    return {
+    const order = {
       id: receiptId,
       amount: Math.round(amount * 100), // Convert to paise
       currency: 'INR',
       receipt: receiptId,
       status: 'created'
     };
+    
+    return order;
   } catch (error) {
-    console.error('Error creating Razorpay order:', error);
     throw new Error('Failed to create payment order. Please try again.');
   }
 };
@@ -103,14 +109,8 @@ export const loadRazorpayScript = (): Promise<boolean> => {
 
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => {
-      console.log('Razorpay script loaded successfully');
-      resolve(true);
-    };
-    script.onerror = () => {
-      console.error('Failed to load Razorpay script');
-      resolve(false);
-    };
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
 };
@@ -130,9 +130,13 @@ export const initializeRazorpay = async (
       return;
     }
 
-    const { keyId } = getRazorpayConfig();
+    // Check if Razorpay is available
+    if (!window.Razorpay) {
+      onError(new Error('Razorpay SDK not loaded properly'));
+      return;
+    }
 
-    console.log('Initializing Razorpay with order:', order);
+    const { keyId } = getRazorpayConfig();
 
     const options: any = {
       key: keyId,
@@ -142,8 +146,6 @@ export const initializeRazorpay = async (
       description: 'TrueSkin Bio Collagen Face Masks',
       order_id: order.id,
       handler: function (response: any) {
-        console.log('Payment successful:', response);
-        
         const payment: RazorpayPayment = {
           id: response.razorpay_payment_id,
           order_id: response.razorpay_order_id || order.id,
@@ -157,29 +159,34 @@ export const initializeRazorpay = async (
         onSuccess(payment);
       },
       prefill: {
-        name: customerInfo.name || '',
-        email: customerInfo.email || '',
-        contact: customerInfo.contact || '',
+        name: customerInfo.name || 'Customer',
+        email: customerInfo.email || 'customer@example.com',
+        contact: customerInfo.contact || '9999999999',
       },
       notes: {
         address: 'TrueSkin Office, India',
       },
       theme: {
-        color: '#b66837',
+        color: '#306b59',
       },
       modal: {
         ondismiss: function() {
-          console.log('Payment modal dismissed by user');
           onError(new Error('Payment cancelled by user'));
         },
       },
+      retry: {
+        enabled: true,
+        max_count: 3,
+      },
     };
 
-    console.log('Opening Razorpay checkout...');
-    const rzp = new (window as any).Razorpay(options);
-    rzp.open();
+    try {
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (rzpError) {
+      onError(new Error('Failed to initialize Razorpay checkout'));
+    }
   } catch (error) {
-    console.error('Error initializing Razorpay:', error);
     onError(error);
   }
 };

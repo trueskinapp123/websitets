@@ -2,15 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, ChevronDown } from 'lucide-react';
 import TypewriterEffect from './TypewriterEffect';
-import Navigation from './Navigation';
 import { scrollToTop } from '../utils/scrollToTop';
 
 const Hero = () => {
   return (
     <section className="relative min-h-screen flex flex-col bg-gradient-to-br from-stone-100 to-amber-50 overflow-hidden">
-      {/* Navigation */}
-      <Navigation />
-
       {/* Hero Content */}
       <div className="flex-1 flex items-center justify-center px-6 lg:px-12 py-20">
         <div className="max-w-5xl mx-auto text-center">
