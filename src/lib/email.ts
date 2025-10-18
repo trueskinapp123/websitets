@@ -1,8 +1,15 @@
 // Email service using Resend API
 import { Resend } from 'resend';
 
-// Initialize Resend client
-const resend = new Resend(import.meta.env.VITE_RESEND_API_KEY || '');
+// Initialize Resend client only if API key is available
+let resend: Resend | null = null;
+
+const initializeResend = () => {
+  if (!resend && import.meta.env.VITE_RESEND_API_KEY) {
+    resend = new Resend(import.meta.env.VITE_RESEND_API_KEY);
+  }
+  return resend;
+};
 
 // Admin email address
 const ADMIN_EMAIL = 'ceo@trueskin.app';
@@ -35,7 +42,8 @@ interface OrderEmailData {
 // Send order confirmation email to admin
 export async function sendOrderConfirmationToAdmin(orderData: OrderEmailData): Promise<boolean> {
   try {
-    if (!import.meta.env.VITE_RESEND_API_KEY) {
+    const resendClient = initializeResend();
+    if (!resendClient) {
       console.warn('Resend API key not configured. Email not sent.');
       return false;
     }
@@ -185,7 +193,7 @@ export async function sendOrderConfirmationToAdmin(orderData: OrderEmailData): P
       </html>
     `;
 
-    const result = await resend.emails.send({
+    const result = await resendClient.emails.send({
       from: 'TrueSkin Orders <orders@trueskin.app>',
       to: ADMIN_EMAIL,
       subject: `🎉 New Order #${orderData.id.slice(0, 8).toUpperCase()} - ₹${orderData.totalAmount.toFixed(2)}`,
@@ -208,7 +216,8 @@ export async function sendOrderConfirmationToAdmin(orderData: OrderEmailData): P
 // Send order confirmation email to customer
 export async function sendOrderConfirmationToCustomer(orderData: OrderEmailData): Promise<boolean> {
   try {
-    if (!import.meta.env.VITE_RESEND_API_KEY) {
+    const resendClient = initializeResend();
+    if (!resendClient) {
       console.warn('Resend API key not configured. Email not sent.');
       return false;
     }
@@ -329,7 +338,7 @@ export async function sendOrderConfirmationToCustomer(orderData: OrderEmailData)
       </html>
     `;
 
-    const result = await resend.emails.send({
+    const result = await resendClient.emails.send({
       from: 'TrueSkin Orders <orders@trueskin.app>',
       to: orderData.customerEmail,
       subject: `Order Confirmation #${orderData.id.slice(0, 8).toUpperCase()} - TrueSkin`,
