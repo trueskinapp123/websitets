@@ -8,9 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "vite preview --port 4173 --host",
-    "backend": "cd src/backend && npm start",
-    "backend:dev": "cd src/backend && npm run dev"
+    "start": "vite preview --port 4173 --host"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
