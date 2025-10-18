@@ -74,9 +74,8 @@ const RazorpayPayment = ({
         .toString(36)
         .substr(2, 9)}`;
 
-      // Create order via backend API
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-      const orderResponse = await fetch(`${apiUrl}/api/create-order`, {
+      // Create order via Vercel API
+      const orderResponse = await fetch('/api/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,8 +109,8 @@ const RazorpayPayment = ({
         order_id: orderData.order.id,
         handler: async function (response: any) {
           try {
-            // Verify payment with backend
-            const verifyResponse = await fetch(`${apiUrl}/api/verify-payment`, {
+            // Verify payment with Vercel API
+            const verifyResponse = await fetch('/api/verify-payment', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

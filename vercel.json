@@ -1,4 +1,15 @@
 {
+  "functions": {
+    "api/create-order.ts": {
+      "maxDuration": 30
+    },
+    "api/verify-payment.ts": {
+      "maxDuration": 30
+    },
+    "api/health.ts": {
+      "maxDuration": 10
+    }
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
