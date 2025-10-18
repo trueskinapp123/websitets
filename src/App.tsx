@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider, useCart } from './contexts/CartContext';
 import { queryClient } from './lib/queryClient';
+import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/Home';
 import Shop from './pages/Shop';
 import About from './pages/About';
@@ -19,6 +20,8 @@ import Toast from './components/Toast';
 // Component to handle toast notifications
 const AppContent = () => {
   const { state, dispatch } = useCart();
+
+  console.log('AppContent: Rendering with cart state:', state);
 
   const handleCloseToast = () => {
     dispatch({ type: 'SHOW_ADDED_MESSAGE', payload: false });
@@ -55,13 +58,15 @@ const AppContent = () => {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <CartProvider>
-          <AppContent />
-        </CartProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <CartProvider>
+            <AppContent />
+          </CartProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
