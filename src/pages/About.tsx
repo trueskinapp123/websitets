@@ -38,9 +38,9 @@ const About = () => {
   return (
     <div className="min-h-screen bg-stone-50">
       {/* Navigation */}
-      <div className="bg-white shadow-sm">
+      {/* <div className="bg-white shadow-sm">
         <Navigation />
-      </div>
+      </div> */}
 
       {/* Hero Section */}
       <section className="py-20 bg-gradient-to-br from-stone-100 to-amber-50">
