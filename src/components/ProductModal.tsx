@@ -44,182 +44,184 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black bg-opacity-50 overflow-y-auto">
+      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[95vh] overflow-hidden shadow-2xl my-4">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="font-playfair text-2xl font-bold text-[#803716]">
+        <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <h2 className="font-playfair text-xl sm:text-2xl font-bold text-[#803716] truncate pr-4">
             {product.name}
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200 flex-shrink-0"
           >
-            <X className="w-6 h-6 text-gray-600" />
+            <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex flex-col lg:flex-row">
-          {/* Image Section */}
-          <div className="lg:w-1/2 p-6">
-            <div className="relative">
-              <img
-                src={product.images[currentImageIndex]}
-                alt={product.name}
-                className="w-full h-80 object-cover rounded-xl"
-              />
-              
-              {/* Image Navigation */}
-              {product.images.length > 1 && (
-                <>
-                  <button
-                    onClick={prevImage}
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-lg transition-all duration-200"
-                  >
-                    <ChevronLeft className="w-5 h-5 text-[#803716]" />
-                  </button>
-                  <button
-                    onClick={nextImage}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white p-2 rounded-full shadow-lg transition-all duration-200"
-                  >
-                    <ChevronRight className="w-5 h-5 text-[#803716]" />
-                  </button>
-                </>
-              )}
-
-              {/* Image Indicators */}
-              {product.images.length > 1 && (
-                <div className="flex justify-center mt-4 space-x-2">
-                  {product.images.map((_, index) => (
+        {/* Content - Scrollable */}
+        <div className="overflow-y-auto max-h-[calc(95vh-80px)]">
+          <div className="flex flex-col lg:flex-row">
+            {/* Image Section */}
+            <div className="lg:w-1/2 p-4 sm:p-6">
+              <div className="relative">
+                <img
+                  src={product.images[currentImageIndex]}
+                  alt={product.name}
+                  className="w-full h-64 sm:h-80 object-cover rounded-xl"
+                />
+                
+                {/* Image Navigation */}
+                {product.images.length > 1 && (
+                  <>
                     <button
-                      key={index}
-                      onClick={() => setCurrentImageIndex(index)}
-                      className={`w-3 h-3 rounded-full transition-all duration-200 ${
-                        index === currentImageIndex
-                          ? 'bg-[#e58f5a]'
-                          : 'bg-gray-300 hover:bg-gray-400'
-                      }`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Product Details */}
-          <div className="lg:w-1/2 p-6 flex flex-col justify-between">
-            <div>
-              {/* Rating */}
-              <div className="flex items-center gap-2 mb-4">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`w-4 h-4 ${
-                        i < Math.floor(product.rating)
-                          ? 'text-[#e58f5a] fill-current'
-                          : 'text-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="font-lato text-sm text-gray-600">
-                  {product.rating} ({product.reviews} reviews)
-                </span>
-              </div>
-
-              {/* Description */}
-              <p className="font-lato text-gray-700 mb-6 leading-relaxed">
-                {product.description}
-              </p>
-
-              {/* Pack Details */}
-              <div className="bg-gradient-to-br from-[#e58f5a]/10 to-[#b66837]/10 rounded-xl p-4 mb-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-playfair text-lg font-bold text-[#803716]">
-                      {product.count}
-                    </h4>
-                    <p className="font-lato text-sm text-[#b66837]">
-                      ₹{Math.round(product.price / parseInt(product.count))} per mask
-                    </p>
-                  </div>
-                  {product.popular && (
-                    <span className="bg-[#e58f5a] text-white px-3 py-1 rounded-full font-lato font-semibold text-xs">
-                      Most Popular
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Pricing */}
-              <div className="flex items-center gap-4 mb-6">
-                <span className="font-playfair text-3xl font-bold text-[#803716]">
-                  ₹{product.price}
-                </span>
-                <span className="font-lato text-lg text-gray-500 line-through">
-                  ₹{product.originalPrice}
-                </span>
-                <span className="bg-[#b66837] text-white px-3 py-1 rounded-full font-lato font-semibold text-sm">
-                  {product.discount}
-                </span>
-              </div>
-            </div>
-
-            {/* Add to Cart Button */}
-            <div className="space-y-3">
-              {showLoginMessage && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-                  <LogIn className="w-8 h-8 text-amber-600 mx-auto mb-2" />
-                  <p className="font-lato text-amber-800 text-sm mb-2">
-                    Please log in to add items to your cart
-                  </p>
-                  <button
-                    onClick={() => {
-                      onClose();
-                      // Trigger auth modal by dispatching custom event
-                      window.dispatchEvent(new CustomEvent('openAuthModal'));
-                    }}
-                    className="bg-[#b66837] hover:bg-[#803716] text-white px-4 py-2 rounded-full font-lato font-semibold text-sm transition-all duration-300"
-                  >
-                    Sign In Now
-                  </button>
-                </div>
-              )}
-              
-              {state.showAddedMessage && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <ShoppingCart className="w-5 h-5 text-green-600" />
-                    <p className="font-lato text-green-800 text-sm">
-                      Added to cart successfully!
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              <button
-                onClick={handleAddToCart}
-                disabled={state.isLoading}
-                className={`w-full ${
-                  user 
-                    ? 'bg-[#b66837] hover:bg-[#803716]' 
-                    : 'bg-gray-400 cursor-not-allowed'
-                } text-white px-6 py-4 rounded-full font-lato font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-3 group disabled:transform-none disabled:hover:scale-100 disabled:hover:shadow-none`}
-              >
-                {state.isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <ShoppingCart className="w-5 h-5 group-hover:animate-bounce" />
-                    {user ? 'Add to Cart' : 'Sign In Required'}
+                      onClick={prevImage}
+                      className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white p-1.5 sm:p-2 rounded-full shadow-lg transition-all duration-200"
+                    >
+                      <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-[#803716]" />
+                    </button>
+                    <button
+                      onClick={nextImage}
+                      className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 bg-white/80 hover:bg-white p-1.5 sm:p-2 rounded-full shadow-lg transition-all duration-200"
+                    >
+                      <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-[#803716]" />
+                    </button>
                   </>
                 )}
-              </button>
+
+                {/* Image Indicators */}
+                {product.images.length > 1 && (
+                  <div className="flex justify-center mt-3 sm:mt-4 space-x-2">
+                    {product.images.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentImageIndex(index)}
+                        className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-all duration-200 ${
+                          index === currentImageIndex
+                            ? 'bg-[#e58f5a]'
+                            : 'bg-gray-300 hover:bg-gray-400'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Product Details */}
+            <div className="lg:w-1/2 p-4 sm:p-6 flex flex-col justify-between min-h-[400px]">
+              <div>
+                {/* Rating */}
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                  <div className="flex items-center">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
+                          i < Math.floor(product.rating)
+                            ? 'text-[#e58f5a] fill-current'
+                            : 'text-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="font-lato text-xs sm:text-sm text-gray-600">
+                    {product.rating} ({product.reviews} reviews)
+                  </span>
+                </div>
+
+                {/* Description */}
+                <p className="font-lato text-sm sm:text-base text-gray-700 mb-4 sm:mb-6 leading-relaxed">
+                  {product.description}
+                </p>
+
+                {/* Pack Details */}
+                <div className="bg-gradient-to-br from-[#e58f5a]/10 to-[#b66837]/10 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-playfair text-base sm:text-lg font-bold text-[#803716]">
+                        {product.count}
+                      </h4>
+                      <p className="font-lato text-xs sm:text-sm text-[#b66837]">
+                        ₹{Math.round(product.price / parseInt(product.count))} per mask
+                      </p>
+                    </div>
+                    {product.popular && (
+                      <span className="bg-[#e58f5a] text-white px-2 sm:px-3 py-1 rounded-full font-lato font-semibold text-xs">
+                        Most Popular
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pricing */}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
+                  <span className="font-playfair text-2xl sm:text-3xl font-bold text-[#803716]">
+                    ₹{product.price}
+                  </span>
+                  <span className="font-lato text-base sm:text-lg text-gray-500 line-through">
+                    ₹{product.originalPrice}
+                  </span>
+                  <span className="bg-[#b66837] text-white px-2 sm:px-3 py-1 rounded-full font-lato font-semibold text-xs sm:text-sm">
+                    {product.discount}
+                  </span>
+                </div>
+              </div>
+
+              {/* Add to Cart Button */}
+              <div className="space-y-3 mt-auto">
+                {showLoginMessage && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 text-center">
+                    <LogIn className="w-6 h-6 sm:w-8 sm:h-8 text-amber-600 mx-auto mb-2" />
+                    <p className="font-lato text-amber-800 text-xs sm:text-sm mb-2">
+                      Please log in to add items to your cart
+                    </p>
+                    <button
+                      onClick={() => {
+                        onClose();
+                        // Trigger auth modal by dispatching custom event
+                        window.dispatchEvent(new CustomEvent('openAuthModal'));
+                      }}
+                      className="bg-[#b66837] hover:bg-[#803716] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-lato font-semibold text-xs sm:text-sm transition-all duration-300"
+                    >
+                      Sign In Now
+                    </button>
+                  </div>
+                )}
+                
+                {state.showAddedMessage && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 sm:p-4 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                      <p className="font-lato text-green-800 text-xs sm:text-sm">
+                        Added to cart successfully!
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                <button
+                  onClick={handleAddToCart}
+                  disabled={state.isLoading}
+                  className={`w-full ${
+                    user 
+                      ? 'bg-[#b66837] hover:bg-[#803716]' 
+                      : 'bg-gray-400 cursor-not-allowed'
+                  } text-white px-4 sm:px-6 py-3 sm:py-4 rounded-full font-lato font-semibold text-sm sm:text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 sm:gap-3 group disabled:transform-none disabled:hover:scale-100 disabled:hover:shadow-none`}
+                >
+                  {state.isLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
+                      <span className="text-xs sm:text-base">Adding...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 group-hover:animate-bounce" />
+                      <span className="text-xs sm:text-base">{user ? 'Add to Cart' : 'Sign In Required'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
