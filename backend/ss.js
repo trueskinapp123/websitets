@@ -2,44 +2,46 @@ const express = require('express');
 const cors = require('cors');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// -------------------- MIDDLEWARE --------------------
+// Middleware
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://trueskinapp.vercel.app', 'https://trueskin.app']
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://trueskinapp.vercel.app', 'https://trueskin.app'] 
     : ['http://localhost:5173', 'http://localhost:5174'],
   credentials: true
 }));
 app.use(express.json());
 
-// -------------------- RAZORPAY INIT --------------------
+// Initialize Razorpay
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// -------------------- HEALTH CHECK --------------------
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'TrueSkin Backend is running' });
 });
 
-// -------------------- CREATE ORDER --------------------
+// Create Razorpay order
 app.post('/api/create-order', async (req, res) => {
   try {
     const { amount, currency = 'INR', receipt } = req.body;
 
     if (!amount || amount <= 0) {
-      return res.status(400).json({ success: false, error: 'Invalid amount' });
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid amount' 
+      });
     }
 
     const options = {
       amount: Math.round(amount * 100), // Convert to paise
-      currency,
+      currency: currency,
       receipt: receipt || `receipt_${Date.now()}`,
       payment_capture: 1
     };
@@ -67,7 +69,7 @@ app.post('/api/create-order', async (req, res) => {
   }
 });
 
-// -------------------- VERIFY PAYMENT --------------------
+// Verify payment
 app.post('/api/verify-payment', async (req, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
@@ -79,6 +81,7 @@ app.post('/api/verify-payment', async (req, res) => {
       });
     }
 
+    // Create signature
     const body = razorpay_order_id + "|" + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -95,7 +98,10 @@ app.post('/api/verify-payment', async (req, res) => {
         orderId: razorpay_order_id
       });
     } else {
-      res.status(400).json({ success: false, error: 'Payment verification failed' });
+      res.status(400).json({
+        success: false,
+        error: 'Payment verification failed'
+      });
     }
 
   } catch (error) {
@@ -107,12 +113,13 @@ app.post('/api/verify-payment', async (req, res) => {
   }
 });
 
-// -------------------- GET PAYMENT DETAILS --------------------
+// Get payment details
 app.get('/api/payment/:paymentId', async (req, res) => {
   try {
     const { paymentId } = req.params;
+    
     const payment = await razorpay.payments.fetch(paymentId);
-
+    
     res.json({
       success: true,
       payment: {
@@ -134,25 +141,11 @@ app.get('/api/payment/:paymentId', async (req, res) => {
   }
 });
 
-// -------------------- SERVE FRONTEND (dist) --------------------
-const distPath = path.join(__dirname, 'dist');
-app.use(express.static(distPath));
-
-// Serve index.html for all non-API routes (SPA support)
-app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(distPath, 'index.html'));
-  } else {
-    res.status(404).json({ success: false, error: 'API route not found' });
-  }
-});
-
-// -------------------- START SERVER --------------------
+// Start server
 app.listen(PORT, () => {
   console.log(`🚀 TrueSkin Backend running on port ${PORT}`);
   console.log(`📋 Health check: http://localhost:${PORT}/health`);
   console.log(`💳 Razorpay Key ID: ${process.env.RAZORPAY_KEY_ID ? 'Configured' : 'Missing'}`);
-  console.log(`🪶 Serving frontend from: ${distPath}`);
 });
 
 module.exports = app;
