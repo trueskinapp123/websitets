@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ChevronLeft, ChevronRight, ShoppingCart, Star, LogIn } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, ShoppingCart, Star } from 'lucide-react';
 import { Product, useCart } from '../contexts/CartContext';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -13,14 +13,15 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const { addToCart, state } = useCart();
   const { user } = useAuth();
-  const [showLoginMessage, setShowLoginMessage] = useState(false);
 
   if (!isOpen || !product) return null;
 
   const handleAddToCart = async () => {
     if (!user) {
-      setShowLoginMessage(true);
-      setTimeout(() => setShowLoginMessage(false), 3000);
+      // Close product modal first
+      onClose();
+      // Immediately open auth modal by dispatching custom event
+      window.dispatchEvent(new CustomEvent('openAuthModal'));
       return;
     }
 
@@ -170,36 +171,17 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
 
               {/* Add to Cart Button */}
               <div className="space-y-3 mt-auto">
-                {showLoginMessage && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4 text-center">
-                    <LogIn className="w-6 h-6 sm:w-8 sm:h-8 text-amber-600 mx-auto mb-2" />
-                    <p className="font-lato text-amber-800 text-xs sm:text-sm mb-2">
-                      Please log in to add items to your cart
-                    </p>
-                    <button
-                      onClick={() => {
-                        onClose();
-                        // Trigger auth modal by dispatching custom event
-                        window.dispatchEvent(new CustomEvent('openAuthModal'));
-                      }}
-                      className="bg-[#b66837] hover:bg-[#803716] text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-lato font-semibold text-xs sm:text-sm transition-all duration-300"
-                    >
-                      Sign In Now
-                    </button>
-                  </div>
-                )}
-                
                 {state.showAddedMessage && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 sm:p-4 text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
-                      <p className="font-lato text-green-800 text-xs sm:text-sm">
+                      <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                      <p className="font-lato text-green-800 text-sm sm:text-base">
                         Added to cart successfully!
                       </p>
                     </div>
                   </div>
                 )}
-                
+
                 <button
                   onClick={handleAddToCart}
                   disabled={state.isLoading}
@@ -207,17 +189,19 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, isOpen, onClose })
                     user 
                       ? 'bg-[#b66837] hover:bg-[#803716]' 
                       : 'bg-gray-400 cursor-not-allowed'
-                  } text-white px-4 sm:px-6 py-3 sm:py-4 rounded-full font-lato font-semibold text-sm sm:text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 sm:gap-3 group disabled:transform-none disabled:hover:scale-100 disabled:hover:shadow-none`}
+                  } text-white px-5 sm:px-6 py-2.5 sm:py-3.5 rounded-full font-lato font-semibold text-base sm:text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 sm:gap-3 group disabled:transform-none disabled:hover:scale-100 disabled:hover:shadow-none`}
                 >
                   {state.isLoading ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 sm:h-5 sm:w-5 border-b-2 border-white"></div>
-                      <span className="text-xs sm:text-base">Adding...</span>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span className="text-sm sm:text-base">Adding...</span>
                     </>
                   ) : (
                     <>
-                      <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 group-hover:animate-bounce" />
-                      <span className="text-xs sm:text-base">{user ? 'Add to Cart' : 'Sign In Required'}</span>
+                      <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 group-hover:animate-bounce" />
+                      <span className="text-sm sm:text-base">
+                        {user ? 'Add to Cart' : 'Sign In Required'}
+                      </span>
                     </>
                   )}
                 </button>

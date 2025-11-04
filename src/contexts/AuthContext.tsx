@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -38,6 +38,11 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Session timeout configuration (default: 1 hour in milliseconds)
+const SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hour
+// Activity check interval (check every 5 minutes)
+const ACTIVITY_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, setState] = useState<AuthState>({
     user: null,
@@ -46,9 +51,249 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loading: true
   });
 
+  const lastActivityRef = useRef<number>(Date.now());
+  const activityCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const LAST_ACTIVITY_KEY = 'lastActivityTime';
+
+  // Update last activity time (both in memory and localStorage)
+  const updateLastActivity = () => {
+    const now = Date.now();
+    lastActivityRef.current = now;
+    try {
+      localStorage.setItem(LAST_ACTIVITY_KEY, now.toString());
+    } catch (error) {
+      console.error('Error saving last activity time:', error);
+    }
+  };
+
+  // Get last activity time from localStorage
+  const getLastActivityFromStorage = (): number | null => {
+    try {
+      const stored = localStorage.getItem(LAST_ACTIVITY_KEY);
+      if (!stored) return null;
+      const parsed = parseInt(stored, 10);
+      // Validate that it's a valid number and not NaN
+      if (isNaN(parsed) || parsed <= 0) {
+        console.warn('Invalid stored activity time, clearing it');
+        localStorage.removeItem(LAST_ACTIVITY_KEY);
+        return null;
+      }
+      return parsed;
+    } catch (error) {
+      console.error('Error reading last activity time:', error);
+      return null;
+    }
+  };
+
+  // Clear last activity time from localStorage
+  const clearLastActivityStorage = () => {
+    try {
+      localStorage.removeItem(LAST_ACTIVITY_KEY);
+    } catch (error) {
+      console.error('Error clearing last activity time:', error);
+    }
+  };
+
+  // Check if session is expired
+  const checkSessionExpiration = async () => {
+    const now = Date.now();
+    const lastActivity = lastActivityRef.current;
+    const timeSinceActivity = now - lastActivity;
+
+    // Check if user has been inactive for too long
+    if (timeSinceActivity > SESSION_TIMEOUT) {
+      console.log('Session expired due to inactivity. Logging out...');
+      // Clear local state immediately
+      setState({
+        user: null,
+        profile: null,
+        session: null,
+        loading: false
+      });
+      // Clear cached data
+      localStorage.removeItem('guestCart');
+      clearLastActivityStorage();
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      return;
+    }
+
+    // Also check if Supabase session has expired
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const expiresAt = session.expires_at;
+      if (expiresAt) {
+        const sessionExpiryTime = expiresAt * 1000; // Convert to milliseconds
+        if (now > sessionExpiryTime) {
+          console.log('Supabase session expired. Logging out...');
+          // Clear local state immediately
+          setState({
+            user: null,
+            profile: null,
+            session: null,
+            loading: false
+          });
+          // Clear cached data
+          localStorage.removeItem('guestCart');
+          clearLastActivityStorage();
+          // Sign out from Supabase
+          await supabase.auth.signOut();
+          return;
+        }
+      }
+    }
+  };
+
+  // Setup activity tracking
   useEffect(() => {
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    const handleActivity = () => {
+      updateLastActivity();
+    };
+
+    // Add event listeners for user activity
+    activityEvents.forEach(event => {
+      document.addEventListener(event, handleActivity, { passive: true });
+    });
+
+    // Check session expiration periodically
+    activityCheckIntervalRef.current = setInterval(() => {
+      if (state.user) {
+        checkSessionExpiration();
+      }
+    }, ACTIVITY_CHECK_INTERVAL);
+
+    // Also set a timeout for when session should expire
+    if (state.user) {
+      const remainingTime = SESSION_TIMEOUT - (Date.now() - lastActivityRef.current);
+      if (remainingTime > 0) {
+        sessionTimeoutRef.current = setTimeout(() => {
+          checkSessionExpiration();
+        }, remainingTime);
+      }
+    }
+
+    return () => {
+      // Cleanup event listeners
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+      
+      // Cleanup intervals
+      if (activityCheckIntervalRef.current) {
+        clearInterval(activityCheckIntervalRef.current);
+      }
+      if (sessionTimeoutRef.current) {
+        clearTimeout(sessionTimeoutRef.current);
+      }
+    };
+  }, [state.user]);
+
+  useEffect(() => {
+    // Immediate synchronous check on page load/reload before async session check
+    // This ensures we catch expired sessions even if localStorage is checked before session is retrieved
+    const storedLastActivity = getLastActivityFromStorage();
+    const now = Date.now();
+    
+    console.log('🔍 PAGE LOAD/RELOAD - Initial timeout check:', {
+      hasStoredActivity: !!storedLastActivity,
+      storedTime: storedLastActivity,
+      currentTime: now,
+      timeSinceActivity: storedLastActivity ? now - storedLastActivity : null,
+      timeout: SESSION_TIMEOUT,
+      isExpired: storedLastActivity ? (now - storedLastActivity) > SESSION_TIMEOUT : false
+    });
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const sessionNow = Date.now();
+      console.log('🔍 Session retrieved, checking timeout...');
+
+      // Check if session is expired on initial load
+      if (session) {
+        // CRITICAL: Check inactivity timeout FIRST (before Supabase session check)
+        // This ensures users are logged out if inactive, even if Supabase session is still valid
+        const storedLastActivityForSession = getLastActivityFromStorage();
+        
+        if (storedLastActivityForSession) {
+          const timeSinceActivity = sessionNow - storedLastActivityForSession;
+          const minutesSinceActivity = Math.round(timeSinceActivity / 1000 / 60);
+          const timeoutMinutes = Math.round(SESSION_TIMEOUT / 1000 / 60);
+          
+          console.log(`⏱️ Inactivity check: ${minutesSinceActivity} minutes since last activity (timeout: ${timeoutMinutes} minutes)`);
+          
+          if (timeSinceActivity > SESSION_TIMEOUT) {
+            console.log('❌ SESSION EXPIRED - Inactivity timeout exceeded on page reload! Logging out...');
+            await supabase.auth.signOut();
+            clearLastActivityStorage();
+            localStorage.removeItem('guestCart');
+            setState({
+              user: null,
+              profile: null,
+              session: null,
+              loading: false
+            });
+            return; // Exit early - don't set session state
+          }
+          
+          // Restore last activity time from storage
+          lastActivityRef.current = storedLastActivityForSession;
+          console.log('✅ Session valid - restored last activity time from storage');
+        } else {
+          // No stored activity time - check session creation time as fallback
+          if (session.user.created_at) {
+            const sessionCreatedTime = new Date(session.user.created_at).getTime();
+            const timeSinceSessionCreated = sessionNow - sessionCreatedTime;
+            const minutesSinceCreated = Math.round(timeSinceSessionCreated / 1000 / 60);
+            
+            console.log(`⏱️ No stored activity, checking session age: ${minutesSinceCreated} minutes since session created`);
+            
+            if (timeSinceSessionCreated > SESSION_TIMEOUT) {
+              console.log('❌ SESSION EXPIRED - Session created too long ago (no activity stored). Logging out...');
+              await supabase.auth.signOut();
+              clearLastActivityStorage();
+              localStorage.removeItem('guestCart');
+              setState({
+                user: null,
+                profile: null,
+                session: null,
+                loading: false
+              });
+              return; // Exit early - don't set session state
+            }
+          }
+          
+          // Initialize with current time (fresh login or valid session without stored activity)
+          lastActivityRef.current = sessionNow;
+          updateLastActivity();
+          console.log('✅ Initialized new activity time (fresh login or session without stored activity)');
+        }
+
+        // Also check if Supabase session has expired (secondary check)
+        const expiresAt = session.expires_at;
+        if (expiresAt) {
+          const sessionExpiryTime = expiresAt * 1000;
+          if (sessionNow > sessionExpiryTime) {
+            console.log('❌ SESSION EXPIRED - Supabase session expired. Logging out...');
+            await supabase.auth.signOut();
+            clearLastActivityStorage();
+            setState({
+              user: null,
+              profile: null,
+              session: null,
+              loading: false
+            });
+            return;
+          }
+        }
+      } else {
+        // No session, clear any stored activity time
+        clearLastActivityStorage();
+        console.log('No session found, cleared activity storage');
+      }
+
       setState({
         user: session?.user ?? null,
         profile: null,
@@ -61,8 +306,98 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email);
+      console.log('🔄 Auth state change:', event, session?.user?.email);
       
+      const now = Date.now();
+
+      // Handle logout - clear activity storage
+      if (!session?.user) {
+        clearLastActivityStorage();
+        setState({
+          user: null,
+          profile: null,
+          session: null,
+          loading: false
+        });
+        return;
+      }
+
+      // CRITICAL: Check inactivity timeout FIRST before setting state
+      // This prevents expired sessions from being restored
+      if (event !== 'SIGNED_IN' && event !== 'TOKEN_REFRESHED') {
+        // For existing sessions (not new logins), check inactivity timeout
+        const storedLastActivity = getLastActivityFromStorage();
+        
+        if (storedLastActivity) {
+          const timeSinceActivity = now - storedLastActivity;
+          const minutesSinceActivity = Math.round(timeSinceActivity / 1000 / 60);
+          
+          console.log(`⏱️ Auth state change - Inactivity check: ${minutesSinceActivity} minutes since last activity`);
+          
+          if (timeSinceActivity > SESSION_TIMEOUT) {
+            console.log('❌ SESSION EXPIRED in auth state change - Inactivity timeout exceeded! Logging out...');
+            await supabase.auth.signOut();
+            clearLastActivityStorage();
+            localStorage.removeItem('guestCart');
+            setState({
+              user: null,
+              profile: null,
+              session: null,
+              loading: false
+            });
+            return; // Exit early - don't set session state
+          }
+          
+          // Restore last activity time
+          lastActivityRef.current = storedLastActivity;
+        } else if (session.user.created_at) {
+          // Fallback: check session age if no stored activity
+          const sessionCreatedTime = new Date(session.user.created_at).getTime();
+          const timeSinceSessionCreated = now - sessionCreatedTime;
+          
+          if (timeSinceSessionCreated > SESSION_TIMEOUT) {
+            console.log('❌ SESSION EXPIRED in auth state change - Session created too long ago! Logging out...');
+            await supabase.auth.signOut();
+            clearLastActivityStorage();
+            localStorage.removeItem('guestCart');
+            setState({
+              user: null,
+              profile: null,
+              session: null,
+              loading: false
+            });
+            return; // Exit early - don't set session state
+          }
+        }
+      }
+
+      // Reset activity timer on new login or token refresh
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        updateLastActivity();
+        console.log('✅ New login/token refresh - activity time updated');
+      }
+
+      // Check if Supabase session has expired
+      if (session) {
+        const expiresAt = session.expires_at;
+        if (expiresAt) {
+          const sessionExpiryTime = expiresAt * 1000;
+          if (now > sessionExpiryTime) {
+            console.log('❌ SESSION EXPIRED in auth state change - Supabase session expired. Logging out...');
+            await supabase.auth.signOut();
+            clearLastActivityStorage();
+            setState({
+              user: null,
+              profile: null,
+              session: null,
+              loading: false
+            });
+            return;
+          }
+        }
+      }
+      
+      // Only set state if all checks pass
       setState({
         user: session?.user ?? null,
         profile: null,
@@ -97,6 +432,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         email,
         password,
       });
+      // Update activity time on successful login
+      if (!error) {
+        updateLastActivity();
+      }
       return { error };
     } catch (error) {
       return { error };
@@ -146,6 +485,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Clear cached data immediately
     localStorage.removeItem('guestCart');
+    clearLastActivityStorage();
     
     // Sign out from Supabase in background (don't wait for it)
     supabase.auth.signOut().catch(error => {

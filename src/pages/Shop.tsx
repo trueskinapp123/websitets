@@ -29,7 +29,8 @@ const Shop = () => {
   const handleAddToCart = async (product: Product) => {
     // Check if user is authenticated
     if (!state.isAuthenticated) {
-      alert('Please sign in to add items to your cart');
+      // Immediately open auth modal by dispatching custom event
+      window.dispatchEvent(new CustomEvent('openAuthModal'));
       return;
     }
     

@@ -5,14 +5,18 @@ import { Resend } from 'resend';
 let resend: Resend | null = null;
 
 const initializeResend = () => {
-  if (!resend && import.meta.env.VITE_RESEND_API_KEY) {
-    resend = new Resend(import.meta.env.VITE_RESEND_API_KEY);
+  if (!resend) {
+    // Use environment variable first, fallback to provided API key if needed
+    const apiKey = import.meta.env.VITE_RESEND_API_KEY || 're_LzohxFUg_MEqroxVFQ5F1CmDgEWvtkJzi';
+    if (apiKey) {
+      resend = new Resend(apiKey);
+    }
   }
   return resend;
 };
 
 // Admin email address
-const ADMIN_EMAIL = 'ceo@trueskin.app';
+const ADMIN_EMAIL = 'amaamafatima67@gmail.com';
 
 interface OrderItem {
   id: string;
@@ -194,7 +198,7 @@ export async function sendOrderConfirmationToAdmin(orderData: OrderEmailData): P
     `;
 
     const result = await resendClient.emails.send({
-      from: 'TrueSkin Orders <orders@trueskin.app>',
+      from: 'TrueSkin Orders <onboarding@resend.dev>',
       to: ADMIN_EMAIL,
       subject: `🎉 New Order #${orderData.id.slice(0, 8).toUpperCase()} - ₹${orderData.totalAmount.toFixed(2)}`,
       html: emailHtml,
@@ -202,6 +206,7 @@ export async function sendOrderConfirmationToAdmin(orderData: OrderEmailData): P
 
     if (result.error) {
       console.error('Error sending email:', result.error);
+      console.error('Error details:', JSON.stringify(result.error, null, 2));
       return false;
     }
 
@@ -330,7 +335,7 @@ export async function sendOrderConfirmationToCustomer(orderData: OrderEmailData)
 
           <div class="footer">
             <p>Thank you for shopping with TrueSkin!</p>
-            <p>If you have any questions, please contact us at ceo@trueskin.app</p>
+            <p>If you have any questions, please contact us at amaamafatima67@gmail.com</p>
             <p>© ${new Date().getFullYear()} TrueSkin. All rights reserved.</p>
           </div>
         </div>
@@ -339,7 +344,7 @@ export async function sendOrderConfirmationToCustomer(orderData: OrderEmailData)
     `;
 
     const result = await resendClient.emails.send({
-      from: 'TrueSkin Orders <orders@trueskin.app>',
+      from: 'TrueSkin Orders <onboarding@resend.dev>',
       to: orderData.customerEmail,
       subject: `Order Confirmation #${orderData.id.slice(0, 8).toUpperCase()} - TrueSkin`,
       html: emailHtml,
@@ -347,6 +352,7 @@ export async function sendOrderConfirmationToCustomer(orderData: OrderEmailData)
 
     if (result.error) {
       console.error('Error sending email:', result.error);
+      console.error('Error details:', JSON.stringify(result.error, null, 2));
       return false;
     }
 
@@ -365,4 +371,56 @@ export async function sendOrderConfirmation(data: { to: string; subject: string;
   } else {
     return await sendOrderConfirmationToCustomer(data.order);
   }
+}
+
+// Contact form email data interface
+interface ContactFormData {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
+
+// Send contact form query to admin
+export async function sendContactFormEmail(contactData: ContactFormData): Promise<boolean> {
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    console.log('Sending contact form email to:', `${apiUrl}/api/send-contact-email`);
+    
+    const response = await fetch(`${apiUrl}/api/send-contact-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(contactData),
+    });
+
+    const result = await response.json();
+    console.log('Backend response:', { status: response.status, success: result.success, result });
+    
+    if (!response.ok || !result.success) {
+      console.error('❌ Error sending contact form email:', {
+        status: response.status,
+        error: result.error,
+        details: result.details
+      });
+      return false;
+    }
+
+    console.log('✅ Contact form email sent successfully');
+    return true;
+
+
+  } catch (error) {
+    console.error('❌ Network/Fetch error in sendContactFormEmail:', error);
+    return false;
+  }
+}
+
+// Send auto-reply confirmation to customer
+// Note: This is handled by the backend endpoint, but we keep this function for compatibility
+export async function sendContactFormConfirmation(contactData: ContactFormData): Promise<boolean> {
+  // The backend sends both admin and customer emails, so this is already handled
+  // Return true to indicate success since sendContactFormEmail handles both
+  return true;
 }

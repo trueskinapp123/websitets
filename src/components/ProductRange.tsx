@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ShoppingCart, Star } from 'lucide-react';
 import ProductModal from './ProductModal';
 import { Product } from '../contexts/CartContext';
+import { useAuth } from '../contexts/AuthContext';
 import { getAllProducts } from '../data/products.ts';
 
 const ProductRange = () => {
@@ -9,6 +10,7 @@ const ProductRange = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   // Load products from local data
   useEffect(() => {
@@ -42,6 +44,20 @@ const ProductRange = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
+  };
+
+  const handleAddToCartClick = (e: React.MouseEvent, product: Product) => {
+    e.stopPropagation();
+    
+    // Check if user is authenticated
+    if (!user) {
+      // Immediately open auth modal by dispatching custom event
+      window.dispatchEvent(new CustomEvent('openAuthModal'));
+      return;
+    }
+    
+    // If authenticated, open the product modal (existing behavior)
+    handleProductClick(product);
   };
 
   if (isLoading) {
@@ -198,10 +214,7 @@ const ProductRange = () => {
 
                         {/* CTA Button */}
                         <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleProductClick(product);
-                          }}
+                          onClick={(e) => handleAddToCartClick(e, product)}
                           className="w-full bg-[#b66837] hover:bg-[#803716] text-white px-6 py-3 rounded-full font-lato font-semibold text-base transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 group"
                         >
                           <ShoppingCart className="w-4 h-4 group-hover:animate-bounce" />

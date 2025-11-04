@@ -1,41 +1,12 @@
-import React, { useState } from 'react';
-import { Mail, Phone, Send, MessageCircle } from 'lucide-react';
-import Navigation from '../components/Navigation';
+import React from 'react';
+import { Mail, Phone, MessageCircle } from 'lucide-react';
 
 const Contact = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: ''
-  });
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission here
-    console.log('Form submitted:', formData);
-    // Reset form
-    setFormData({
-      name: '',
-      email: '',
-      subject: '',
-      message: ''
-    });
-  };
-
   const contactInfo = [
     {
       icon: <Mail className="w-6 h-6" />,
       title: "Email Us",
-      details: "ceo@trueskin.app",
+      details: "amaamafatima67@gmail.com",
       description: "Send us an email anytime"
     },
     {
@@ -113,106 +84,26 @@ const Contact = () => {
             ))}
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-16">
-            {/* Contact Form */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg">
-              <h2 className="font-playfair text-3xl font-bold text-[#803716] mb-6">
-                Send us a Message
-              </h2>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="name" className="block font-lato font-semibold text-[#803716] mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e58f5a] focus:border-transparent transition-all duration-300"
-                      placeholder="Your full name"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="email" className="block font-lato font-semibold text-[#803716] mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e58f5a] focus:border-transparent transition-all duration-300"
-                      placeholder="your.email@example.com"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="subject" className="block font-lato font-semibold text-[#803716] mb-2">
-                    Subject
-                  </label>
-                  <input
-                    type="text"
-                    id="subject"
-                    name="subject"
-                    value={formData.subject}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e58f5a] focus:border-transparent transition-all duration-300"
-                    placeholder="What's this about?"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="message" className="block font-lato font-semibold text-[#803716] mb-2">
-                    Message
-                  </label>
-                  <textarea
-                    id="message"
-                    name="message"
-                    value={formData.message}
-                    onChange={handleInputChange}
-                    required
-                    rows={5}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e58f5a] focus:border-transparent transition-all duration-300 resize-none"
-                    placeholder="Tell us how we can help you..."
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full bg-[#b66837] hover:bg-[#803716] text-white px-6 py-4 rounded-full font-lato font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-3 group"
+          {/* FAQ Section */}
+          <div className="max-w-4xl mx-auto">
+            <h2 className="font-playfair text-3xl font-bold text-[#803716] mb-6 text-center">
+              Frequently Asked Questions
+            </h2>
+            <div className="space-y-4">
+              {faqs.map((faq, index) => (
+                <div
+                  key={index}
+                  className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300"
                 >
-                  <Send className="w-5 h-5 group-hover:animate-bounce" />
-                  Send Message
-                </button>
-              </form>
-            </div>
-
-            {/* FAQ Section */}
-            <div>
-              <h2 className="font-playfair text-3xl font-bold text-[#803716] mb-6">
-                Frequently Asked Questions
-              </h2>
-              <div className="space-y-4">
-                {faqs.map((faq, index) => (
-                  <div
-                    key={index}
-                    className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300"
-                  >
-                    <h3 className="font-lato font-semibold text-[#803716] mb-3 flex items-center gap-3">
-                      <MessageCircle className="w-5 h-5 text-[#e58f5a]" />
-                      {faq.question}
-                    </h3>
-                    <p className="font-lato text-gray-600 leading-relaxed">
-                      {faq.answer}
-                    </p>
-                  </div>
-                ))}
-              </div>
+                  <h3 className="font-lato font-semibold text-[#803716] mb-3 flex items-center gap-3">
+                    <MessageCircle className="w-5 h-5 text-[#e58f5a]" />
+                    {faq.question}
+                  </h3>
+                  <p className="font-lato text-gray-600 leading-relaxed">
+                    {faq.answer}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
