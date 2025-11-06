@@ -18,6 +18,6 @@ export const getApiUrl = (): string => {
   }
 
   // Default to localhost for development
-  return 'http://localhost:3001';
+  return "https://trueskin.app";
 };
 
