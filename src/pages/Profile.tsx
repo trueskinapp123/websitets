@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { userService, UserProfile } from '../services/userService';
 import Navigation from '../components/Navigation';
 import { User, Mail, Phone, MapPin, Calendar, Edit3, Save, X, Loader } from 'lucide-react';
 
 const Profile = () => {
   const { user, profile, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [profileData, setProfileData] = useState<UserProfile | null>(null);
+  const [profileData, setProfileData] = useState(profile || null);
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
@@ -63,21 +61,26 @@ const Profile = () => {
         state: formData.state,
         postal_code: formData.postalCode,
         country: formData.country,
-        date_of_birth: formData.dateOfBirth,
-        gender: formData.gender
+        date_of_birth: formData.dateOfBirth || undefined,
+        gender: formData.gender || undefined
       };
 
+      console.log('Profile update: Sending updates:', updates);
       const result = await updateProfile(updates);
+      
       if (result.error) {
         console.error('Error updating profile:', result.error);
-        alert('Failed to update profile. Please try again.');
+        const errorMessage = result.error?.message || result.error?.toString() || 'Unknown error';
+        console.error('Full error object:', result.error);
+        alert(`Failed to update profile: ${errorMessage}\n\nPlease check the browser console for more details.`);
       } else {
         setIsEditing(false);
         alert('Profile updated successfully!');
       }
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Failed to update profile. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to update profile: ${errorMessage}\n\nPlease check the browser console for more details.`);
     } finally {
       setIsSaving(false);
     }

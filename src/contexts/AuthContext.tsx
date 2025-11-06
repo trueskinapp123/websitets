@@ -461,7 +461,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signInWithGoogle = async () => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/`,
@@ -494,24 +494,82 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!state.user) return { error: new Error('No user logged in') };
+    if (!state.user) {
+      console.error('updateProfile: No user logged in');
+      return { error: new Error('No user logged in') };
+    }
 
     try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .update(updates)
-        .eq('id', state.user.id);
+      console.log('updateProfile: Updating profile for user:', state.user.id);
+      console.log('updateProfile: Updates:', updates);
 
-      if (!error) {
+      // First, check if profile exists
+      const { error: checkError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('id', state.user.id)
+        .single();
+
+      // If profile doesn't exist, create it first
+      if (checkError && checkError.code === 'PGRST116') {
+        console.log('updateProfile: Profile does not exist, creating new profile...');
+        const { data: newProfile, error: createError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: state.user.id,
+            email: state.user.email || '',
+            ...updates,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('updateProfile: Error creating profile:', createError);
+          return { error: createError };
+        }
+
+        // Update state with new profile (keep snake_case as that's what AuthContext uses)
         setState(prev => ({
           ...prev,
-          profile: prev.profile ? { ...prev.profile, ...updates } : null
+          profile: newProfile as UserProfile
         }));
+
+        console.log('updateProfile: Profile created successfully');
+        return { error: null };
       }
 
-      return { error };
+      // Profile exists, update it
+      const { data: updatedProfile, error: updateError } = await supabase
+        .from('user_profiles')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', state.user.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('updateProfile: Error updating profile:', updateError);
+        console.error('updateProfile: Error details:', JSON.stringify(updateError, null, 2));
+        return { error: updateError };
+      }
+
+      // Update state with refreshed profile from database (keep snake_case as that's what AuthContext uses)
+      if (updatedProfile) {
+        setState(prev => ({
+          ...prev,
+          profile: updatedProfile as UserProfile
+        }));
+        console.log('updateProfile: Profile updated successfully');
+      }
+
+      return { error: null };
     } catch (error) {
-      return { error };
+      console.error('updateProfile: Unexpected error:', error);
+      return { error: error instanceof Error ? error : new Error('Failed to update profile') };
     }
   };
 
