@@ -75,7 +75,7 @@ const RazorpayPayment = ({
         .substr(2, 9)}`;
 
       // Create order via backend API
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http:trueskin.app';
       const orderResponse = await fetch(`${apiUrl}/api/create-order`, {
         method: 'POST',
         headers: {
