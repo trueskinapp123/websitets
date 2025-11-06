@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useToast } from "../hooks/use-toast";
 import { supabase } from "../lib/supabase";
 import { CreditCard, Loader2 } from "lucide-react";
-import { createRazorpayOrder, initializeRazorpay } from "../lib/razorpay";
 import { sendOrderConfirmationToAdmin, sendOrderConfirmationToCustomer } from "../lib/email";
+import { getApiUrl } from "../utils/apiUrl";
 
 interface RazorpayPaymentProps {
   amount: number;
@@ -75,7 +75,7 @@ const RazorpayPayment = ({
         .substr(2, 9)}`;
 
       // Create order via backend API
-      const apiUrl = import.meta.env.VITE_API_URL || 'http:trueskin.app';
+      const apiUrl = getApiUrl();
       const orderResponse = await fetch(`${apiUrl}/api/create-order`, {
         method: 'POST',
         headers: {

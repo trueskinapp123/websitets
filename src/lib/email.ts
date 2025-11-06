@@ -1,5 +1,6 @@
 // Email service using Resend API
 import { Resend } from 'resend';
+import { getApiUrl } from '../utils/apiUrl';
 
 // Initialize Resend client only if API key is available
 let resend: Resend | null = null;
@@ -384,7 +385,7 @@ interface ContactFormData {
 // Send contact form query to admin
 export async function sendContactFormEmail(contactData: ContactFormData): Promise<boolean> {
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const apiUrl = getApiUrl();
     console.log('Sending contact form email to:', `${apiUrl}/api/send-contact-email`);
     
     const response = await fetch(`${apiUrl}/api/send-contact-email`, {
@@ -419,7 +420,7 @@ export async function sendContactFormEmail(contactData: ContactFormData): Promis
 
 // Send auto-reply confirmation to customer
 // Note: This is handled by the backend endpoint, but we keep this function for compatibility
-export async function sendContactFormConfirmation(contactData: ContactFormData): Promise<boolean> {
+export async function sendContactFormConfirmation(_contactData: ContactFormData): Promise<boolean> {
   // The backend sends both admin and customer emails, so this is already handled
   // Return true to indicate success since sendContactFormEmail handles both
   return true;
