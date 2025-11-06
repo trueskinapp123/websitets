@@ -59,14 +59,14 @@ const RazorpayPayment = ({
 
   const initiatePayment = async () => {
     setIsProcessing(true);
-    
+
     try {
       // Check if Razorpay credentials are available
       const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID;
       if (!razorpayKeyId) {
         throw new Error('Razorpay Key ID not found. Please add VITE_RAZORPAY_KEY_ID to your .env.local file.');
       }
-      
+
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) throw new Error("Failed to load Razorpay SDK");
 
@@ -75,7 +75,7 @@ const RazorpayPayment = ({
         .substr(2, 9)}`;
 
       // Create order via backend API
-      const apiUrl = getApiUrl();
+      const apiUrl = "https://trueskin.app";
       const orderResponse = await fetch(`${apiUrl}/api/create-order`, {
         method: 'POST',
         headers: {
@@ -223,7 +223,7 @@ const RazorpayPayment = ({
           color: '#306b59',
         },
         modal: {
-          ondismiss: function() {
+          ondismiss: function () {
             onError('Payment cancelled by user');
           },
         },
