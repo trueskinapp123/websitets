@@ -31,7 +31,7 @@ export interface OrderItem {
 }
 
 export interface CreateOrderData {
-  userId: string;
+  userId: string | null; // null for guest orders
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -55,11 +55,14 @@ export const orderService = {
       const totalAmount = orderData.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       console.log('Calculated total amount:', totalAmount);
 
-      // Create order
+      // Use null for guest orders (user_id is nullable in database)
+      const userId = orderData.userId || null;
+
+      // Create order (guest orders will have user_id = null)
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          user_id: orderData.userId,
+          user_id: userId,
           customer_name: orderData.customerName,
           customer_email: orderData.customerEmail,
           customer_phone: orderData.customerPhone,

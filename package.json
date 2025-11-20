@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "vite preview --port 4173 --host"
+    "start": "vite preview --port 4173 --host",
+    "vercel-build": "vite build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

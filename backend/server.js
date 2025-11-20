@@ -4,6 +4,7 @@ const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const path = require('path');
 const { Resend } = require('resend');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
@@ -58,6 +59,31 @@ app.use((req, res, next) => {
   next();
 });
 
+// Initialize Supabase with service role key for admin access
+const supabaseUrl = process.env.SUPABASE_URL || 'https://xnlsijpognudxyoswajm.supabase.co';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = supabaseServiceKey 
+  ? createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    })
+  : null;
+
+// Admin authentication middleware
+const authenticateAdmin = (req, res, next) => {
+  const adminToken = req.headers['x-admin-token'];
+  const adminEmail = req.headers['x-admin-email'];
+  
+  // Simple admin authentication check
+  if (adminEmail === 'ceo@trueskin.app' && adminToken === 'admin_authenticated') {
+    next();
+  } else {
+    res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+};
+
 // -------------------- RAZORPAY INIT --------------------
 // Initialize Razorpay only if credentials are available
 let razorpay = null;
@@ -86,6 +112,13 @@ app.get('/health', (req, res) => {
 
 // -------------------- CREATE ORDER --------------------
 app.post('/api/create-order', async (req, res) => {
+  if (!razorpay) {
+    return res.status(503).json({
+      success: false,
+      error: 'Razorpay is not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your .env file.'
+    });
+  }
+
   try {
     if (!razorpay) {
       return res.status(503).json({
@@ -132,6 +165,13 @@ app.post('/api/create-order', async (req, res) => {
 
 // -------------------- VERIFY PAYMENT --------------------
 app.post('/api/verify-payment', async (req, res) => {
+  if (!razorpay || !process.env.RAZORPAY_KEY_SECRET) {
+    return res.status(503).json({
+      success: false,
+      error: 'Razorpay is not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your .env file.'
+    });
+  }
+
   try {
     if (!razorpay) {
       return res.status(503).json({
@@ -179,6 +219,13 @@ app.post('/api/verify-payment', async (req, res) => {
 
 // -------------------- GET PAYMENT DETAILS --------------------
 app.get('/api/payment/:paymentId', async (req, res) => {
+  if (!razorpay) {
+    return res.status(503).json({
+      success: false,
+      error: 'Razorpay is not configured. Please set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your .env file.'
+    });
+  }
+
   try {
     if (!razorpay) {
       return res.status(503).json({
@@ -469,6 +516,150 @@ app.post('/api/send-order-email', async (req, res) => {
   }
 });
 
+// -------------------- ADMIN ENDPOINTS --------------------
+// Admin endpoints
+if (supabase) {
+  // Get all orders for admin
+  app.get('/api/admin/orders', authenticateAdmin, async (req, res) => {
+    try {
+      // Fetch all orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (ordersError) {
+        console.error('Error fetching orders:', ordersError);
+        return res.status(500).json({
+          success: false,
+          error: ordersError.message || 'Failed to fetch orders'
+        });
+      }
+
+      // Fetch order items for each order
+      const ordersWithItems = await Promise.all(
+        (ordersData || []).map(async (order) => {
+          const { data: itemsData } = await supabase
+            .from('order_items')
+            .select('*')
+            .eq('order_id', order.id);
+
+          // Parse shipping_address if it's a string
+          let shippingAddress = order.shipping_address;
+          if (typeof shippingAddress === 'string') {
+            try {
+              shippingAddress = JSON.parse(shippingAddress);
+            } catch (e) {
+              console.warn('Failed to parse shipping_address:', e);
+              shippingAddress = { street: '', city: '', state: '', zip: '' };
+            }
+          }
+
+          return {
+            id: order.id,
+            userId: order.user_id,
+            customerName: order.customer_name,
+            customerEmail: order.customer_email,
+            customerPhone: order.customer_phone,
+            totalAmount: parseFloat(order.total_amount),
+            status: order.status,
+            shippingAddress: shippingAddress,
+            paymentId: order.payment_id,
+            razorpayOrderId: order.razorpay_order_id,
+            createdAt: order.created_at,
+            updatedAt: order.updated_at,
+            items: (itemsData || []).map(item => ({
+              id: item.id,
+              orderId: item.order_id,
+              productId: item.product_id,
+              quantity: item.quantity,
+              price: parseFloat(item.price),
+              createdAt: item.created_at
+            }))
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        data: ordersWithItems
+      });
+    } catch (error) {
+      console.error('Error in admin orders endpoint:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch orders'
+      });
+    }
+  });
+
+  // Get all users for admin
+  app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+    try {
+      const { data: usersData, error: usersError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+        return res.status(500).json({
+          success: false,
+          error: usersError.message || 'Failed to fetch users'
+        });
+      }
+
+      // Get order counts for each user
+      const usersWithStats = await Promise.all(
+        (usersData || []).map(async (user) => {
+          const { count } = await supabase
+            .from('orders')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id);
+
+          return {
+            id: user.id,
+            email: user.email,
+            fullName: user.full_name,
+            phone: user.phone,
+            createdAt: user.created_at,
+            updatedAt: user.updated_at,
+            orderCount: count || 0
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        data: usersWithStats
+      });
+    } catch (error) {
+      console.error('Error in admin users endpoint:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to fetch users'
+      });
+    }
+  });
+} else {
+  console.warn('⚠️  Supabase service role key not configured. Admin endpoints will not work.');
+  
+  // Fallback endpoints that return helpful error messages
+  app.get('/api/admin/orders', authenticateAdmin, async (req, res) => {
+    res.status(503).json({
+      success: false,
+      error: 'Supabase service role key not configured. Please set SUPABASE_SERVICE_ROLE_KEY in your backend .env file.'
+    });
+  });
+
+  app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+    res.status(503).json({
+      success: false,
+      error: 'Supabase service role key not configured. Please set SUPABASE_SERVICE_ROLE_KEY in your backend .env file.'
+    });
+  });
+}
+
 // -------------------- SERVE FRONTEND (dist) --------------------
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
@@ -488,6 +679,10 @@ app.listen(PORT, () => {
   console.log(`📋 Health check: http://localhost:${PORT}/health`);
   console.log(`💳 Razorpay: ${razorpay ? '✅ Configured' : '❌ Not configured (payment features disabled)'}`);
   console.log(`📧 Email Service: ${resend ? '✅ Ready' : '❌ Not configured'}`);
+  console.log(`🔐 Supabase Admin: ${supabase ? '✅ Configured' : '❌ Not configured (required for admin endpoints)'}`);
+  if (!supabase) {
+    console.log(`   ⚠️  Set SUPABASE_SERVICE_ROLE_KEY in .env to enable admin endpoints`);
+  }
   console.log(`🪶 Serving frontend from: ${distPath}`);
 });
 

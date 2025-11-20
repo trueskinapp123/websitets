@@ -15,6 +15,8 @@ import Cart from './pages/Cart';
 import CheckoutForm from './components/CheckoutForm';
 import OrderSuccess from './pages/OrderSuccess';
 import PaymentFailure from './pages/PaymentFailure';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/AdminDashboard';
 import Footer from './components/Footer';
 import Toast from './components/Toast';
 
@@ -42,6 +44,8 @@ const AppContent = () => {
             <Route path="/checkout" element={<CheckoutForm />} />
             <Route path="/order-success" element={<OrderSuccess />} />
             <Route path="/payment-failure" element={<PaymentFailure />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
           </Routes>
           <Footer />
         </div>

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useToast } from "../hooks/use-toast";
 import { supabase } from "../lib/supabase";
 import { CreditCard, Loader2 } from "lucide-react";
+// Removed unused imports
 import { sendOrderConfirmationToAdmin, sendOrderConfirmationToCustomer } from "../lib/email";
-import { getApiUrl } from "../utils/apiUrl";
 
 interface RazorpayPaymentProps {
   amount: number;
@@ -75,7 +75,8 @@ const RazorpayPayment = ({
         .substr(2, 9)}`;
 
       // Create order via backend API
-      const apiUrl = "https://trueskin.app";
+      const apiUrl = import.meta.env.VITE_API_URL || 
+        (import.meta.env.PROD ? '' : 'http://localhost:3001');
       const orderResponse = await fetch(`${apiUrl}/api/create-order`, {
         method: 'POST',
         headers: {
@@ -111,7 +112,9 @@ const RazorpayPayment = ({
         handler: async function (response: any) {
           try {
             // Verify payment with backend
-            const verifyResponse = await fetch(`${apiUrl}/api/verify-payment`, {
+            const verifyApiUrl = import.meta.env.VITE_API_URL || 
+              (import.meta.env.PROD ? '' : 'http://localhost:3001');
+            const verifyResponse = await fetch(`${verifyApiUrl}/api/verify-payment`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -129,70 +132,83 @@ const RazorpayPayment = ({
               throw new Error(verifyData.error || 'Payment verification failed');
             }
 
-            // Save order to database
+            // Save order to database (works with or without user authentication)
             const { data: { user } } = await supabase.auth.getUser();
+            
+            // Use orderService to create order properly
+            const { orderService } = await import('../services/orderService');
+            
+            // Map items to CartItem format (minimal required fields)
+            const cartItems = items.map(item => ({
+              id: item.productId,
+              name: `Product ${item.productId}`, // Fallback name
+              count: '',
+              originalPrice: item.price,
+              price: item.price,
+              discount: '',
+              description: '',
+              rating: 0,
+              reviews: 0,
+              images: [],
+              quantity: item.quantity
+            }));
+            
+            const orderData = {
+              userId: user?.id || null, // null for guest orders
+              customerName,
+              customerEmail,
+              customerPhone,
+              shippingAddress,
+              cartItems,
+              razorpayOrderId: response.razorpay_order_id
+            };
 
+            // Create order in database
+            const order = await orderService.createOrder(orderData);
+            
+            if (!order) {
+              throw new Error('Failed to save order to database');
+            }
+
+            // Update order status to paid and add payment ID
+            await orderService.updateOrderStatus(order.id, 'paid', response.razorpay_payment_id);
+
+            // Get order items for email
+            const orderItems = await orderService.getOrderItems(order.id);
+
+            // Clear cart if user is logged in
             if (user) {
-              // Insert order into Supabase
-              const { error: insertError } = await supabase.from("orders").insert({
-                id: generatedOrderId,
-                user_id: user.id,
-                customer_name: customerName,
-                customer_email: customerEmail,
-                customer_phone: customerPhone,
-                total_amount: amount,
-                status: "paid",
-                shipping_address: shippingAddress,
-                payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              });
-
-              if (insertError) throw insertError;
-
-              // Insert order items
-              const orderItems = items.map((item) => ({
-                order_id: generatedOrderId,
-                product_id: item.productId,
-                quantity: item.quantity,
-                price: item.price,
-                created_at: new Date().toISOString(),
-              }));
-
-              const { error: itemsError } = await supabase
-                .from("order_items")
-                .insert(orderItems);
-
-              if (itemsError) throw itemsError;
-
-              // Clear cart after success
               await supabase.from("cart").delete().eq("user_id", user.id);
             }
 
-            // Send confirmation emails
+            // Send confirmation emails using orderService
             const emailData = {
-              id: generatedOrderId,
+              id: order.id,
               customerName,
               customerEmail,
               customerPhone,
               totalAmount: amount,
               shippingAddress,
-              items: items.map(item => ({
-                id: item.productId,
+              items: orderItems.map(item => ({
+                id: item.id,
                 productId: item.productId,
                 quantity: item.quantity,
                 price: item.price
               })),
-              createdAt: new Date().toISOString(),
+              createdAt: order.createdAt,
               paymentId: response.razorpay_payment_id,
               razorpayOrderId: response.razorpay_order_id
             };
 
-            await Promise.all([
-              sendOrderConfirmationToAdmin(emailData),
-              sendOrderConfirmationToCustomer(emailData),
-            ]);
+            // Send emails (don't fail if emails fail)
+            try {
+              await Promise.all([
+                sendOrderConfirmationToAdmin(emailData),
+                sendOrderConfirmationToCustomer(emailData),
+              ]);
+            } catch (emailError) {
+              console.warn('Email sending failed, but order was saved:', emailError);
+            }
 
             toast({
               title: "Payment Successful 🎉",
@@ -200,7 +216,7 @@ const RazorpayPayment = ({
                 "Your payment was successful! Confirmation emails have been sent.",
             });
 
-            onSuccess(response.razorpay_payment_id);
+            onSuccess(order.id);
           } catch (error) {
             toast({
               title: "Order Processing Error",

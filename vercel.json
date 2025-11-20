@@ -1,5 +1,45 @@
 {
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
   "rewrites": [
+    {
+      "source": "/api/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/api/create-order",
+      "destination": "/api/create-order"
+    },
+    {
+      "source": "/api/verify-payment",
+      "destination": "/api/verify-payment"
+    },
+    {
+      "source": "/api/admin/orders",
+      "destination": "/api/admin/orders"
+    },
+    {
+      "source": "/api/admin/users",
+      "destination": "/api/admin/users"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
