@@ -77,18 +77,45 @@ const RazorpayPayment = ({
 
       // Create order via backend API
       const getApiUrl = () => {
-        if (import.meta.env.VITE_API_URL) {
-          return import.meta.env.VITE_API_URL;
+        const viteApiUrl = import.meta.env.VITE_API_URL;
+        
+        if (viteApiUrl) {
+          // Remove trailing slash if present
+          return viteApiUrl.replace(/\/$/, '');
         }
-        return import.meta.env.PROD ? '' : 'http://localhost:3001';
+        
+        // In production without VITE_API_URL, this is an error for separate deployments
+        if (import.meta.env.PROD) {
+          throw new Error(
+            'VITE_API_URL is not set in production! ' +
+            'Please set VITE_API_URL environment variable in Vercel pointing to your backend URL. ' +
+            'Example: https://your-backend-name.vercel.app'
+          );
+        }
+        
+        return 'http://localhost:3001';
       };
       
-      const apiUrl = getApiUrl();
+      let apiUrl: string;
+      try {
+        apiUrl = getApiUrl();
+      } catch (configError: any) {
+        console.error('❌ Configuration Error:', configError);
+        toast({
+          title: "Configuration Error",
+          description: configError.message,
+          variant: "destructive",
+        });
+        onError(configError.message);
+        return;
+      }
+      
+      // Construct URL properly (avoid double slashes)
       const orderUrl = `${apiUrl}/api/create-order`;
       
       // Debug logging
       console.log('🔍 Payment Debug Info:');
-      console.log('- VITE_API_URL:', import.meta.env.VITE_API_URL);
+      console.log('- VITE_API_URL (raw):', import.meta.env.VITE_API_URL);
       console.log('- Is Production:', import.meta.env.PROD);
       console.log('- Resolved API URL:', apiUrl);
       console.log('- Full Order URL:', orderUrl);
@@ -111,12 +138,32 @@ const RazorpayPayment = ({
         console.error('- Error Type:', fetchError.name);
         console.error('- Error Message:', fetchError.message);
         console.error('- Network Error:', fetchError instanceof TypeError);
+        console.error('- Stack:', fetchError.stack);
         
         // Provide helpful error message
         if (fetchError instanceof TypeError && fetchError.message === 'Failed to fetch') {
-          const helpfulMessage = !import.meta.env.VITE_API_URL
-            ? 'VITE_API_URL is not set. Please set it in Vercel environment variables pointing to your backend URL.'
-            : `Cannot reach backend at ${orderUrl}. Please check:\n1. Backend is deployed and accessible\n2. VITE_API_URL is correct: ${import.meta.env.VITE_API_URL}\n3. No CORS issues`;
+          const viteApiUrl = import.meta.env.VITE_API_URL;
+          
+          let helpfulMessage = 'Cannot reach backend server. ';
+          
+          if (!viteApiUrl) {
+            helpfulMessage += 'VITE_API_URL is not set. Please set it in Vercel environment variables pointing to your backend URL.';
+          } else {
+            helpfulMessage += `Tried to reach: ${orderUrl}\n\nPlease check:\n` +
+              `1. Backend is deployed and accessible at: ${viteApiUrl}\n` +
+              `2. Test backend: Open ${viteApiUrl}/api/health in browser\n` +
+              `3. VITE_API_URL is correct: ${viteApiUrl}\n` +
+              `4. Frontend was redeployed after setting VITE_API_URL\n` +
+              `5. No CORS issues (backend should have CORS enabled)`;
+          }
+          
+          console.error('❌ Detailed Error:', helpfulMessage);
+          
+          toast({
+            title: "Connection Error",
+            description: helpfulMessage,
+            variant: "destructive",
+          });
           
           throw new Error(helpfulMessage);
         }
@@ -303,15 +350,26 @@ const RazorpayPayment = ({
       rzp.open();
 
     } catch (error) {
+      console.error('❌ Payment Initiation Error:', error);
+      
+      let errorMessage = "Unable to initiate payment. Please try again.";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        console.error('Error details:', {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
+      }
+      
       toast({
         title: "Payment Error",
-        description:
-          error instanceof Error
-            ? error.message
-            : "Unable to initiate payment. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
-      onError("Payment initiation failed");
+      
+      onError(errorMessage);
     } finally {
       setIsProcessing(false);
     }
