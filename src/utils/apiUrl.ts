@@ -1,7 +1,8 @@
 /**
  * Get the API URL for backend requests
  * Automatically detects production vs development environment
- * Uses HTTPS in production, HTTP in development
+ * In production (Vercel), uses relative URLs for serverless functions
+ * In development, uses localhost backend
  */
 export const getApiUrl = (): string => {
   // If VITE_API_URL is explicitly set, use it
@@ -9,15 +10,12 @@ export const getApiUrl = (): string => {
     return import.meta.env.VITE_API_URL;
   }
 
-  // Auto-detect production vs development
-  if (typeof window !== 'undefined') {
-    // If running on HTTPS (production), use HTTPS backend
-    if (window.location.protocol === 'https:') {
-      return 'https://trueskin.app';
-    }
+  // In production, use relative URLs (serverless functions on same domain)
+  if (import.meta.env.PROD) {
+    return '';
   }
 
-  // Default to localhost for development
-  return "https://trueskin.app";
+  // In development, use localhost backend
+  return 'http://localhost:3001';
 };
 

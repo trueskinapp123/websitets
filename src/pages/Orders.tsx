@@ -277,29 +277,44 @@ const Orders = () => {
                             <MapPin className="w-5 h-5" />
                             Shipping Information
                           </h4>
-                          <div className="bg-white p-4 rounded-lg">
-                            <p className="font-lato font-semibold text-[#803716]">
-                              {order.customer_name}
-                            </p>
-                            <p className="font-lato text-gray-600">
-                              {order.customer_email}
-                            </p>
-                            <p className="font-lato text-gray-600">
-                              {order.customer_phone}
-                            </p>
-                            {order.shipping_address && (
-                              <div className="mt-3 pt-3 border-t border-gray-200">
-                                <p className="font-lato text-gray-900">
-                                  {order.shipping_address.street}
+                          <div className="bg-white p-4 sm:p-6 rounded-lg border border-gray-200">
+                            <div className="space-y-3">
+                              <div>
+                                <p className="font-lato font-semibold text-[#803716] text-base mb-1">
+                                  {order.customer_name}
                                 </p>
-                                <p className="font-lato text-gray-900">
-                                  {order.shipping_address.city}, {order.shipping_address.state}
+                                <p className="font-lato text-sm text-gray-600 break-words">
+                                  {order.customer_email}
                                 </p>
-                                <p className="font-lato text-gray-900">
-                                  {order.shipping_address.zip}
+                                <p className="font-lato text-sm text-gray-600">
+                                  {order.customer_phone}
                                 </p>
                               </div>
-                            )}
+                              
+                              {order.shipping_address && (
+                                <div className="pt-3 mt-3 border-t border-gray-200">
+                                  <p className="font-lato text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                                    Delivery Address
+                                  </p>
+                                  <div className="space-y-1">
+                                    <p className="font-lato text-sm text-gray-900 break-words">
+                                      {order.shipping_address.street || 'N/A'}
+                                    </p>
+                                    <p className="font-lato text-sm text-gray-900 break-words">
+                                      {order.shipping_address.city || ''}
+                                      {order.shipping_address.city && order.shipping_address.state && ', '}
+                                      {order.shipping_address.state || ''}
+                                      {order.shipping_address.zip && ` ${order.shipping_address.zip}`}
+                                    </p>
+                                    {order.shipping_address.country && (
+                                      <p className="font-lato text-sm text-gray-700">
+                                        {order.shipping_address.country}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           {/* Payment Information */}

@@ -16,6 +16,7 @@ interface RazorpayPaymentProps {
     city: string;
     state: string;
     zip: string;
+    country?: string;
   };
   items: Array<{
     productId: string;
@@ -75,19 +76,60 @@ const RazorpayPayment = ({
         .substr(2, 9)}`;
 
       // Create order via backend API
-      const apiUrl = import.meta.env.VITE_API_URL || 
-        (import.meta.env.PROD ? '' : 'http://localhost:3001');
-      const orderResponse = await fetch(`${apiUrl}/api/create-order`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          amount: amount,
-          currency: 'INR',
-          receipt: generatedOrderId
-        })
-      });
+      const getApiUrl = () => {
+        if (import.meta.env.VITE_API_URL) {
+          return import.meta.env.VITE_API_URL;
+        }
+        return import.meta.env.PROD ? '' : 'http://localhost:3001';
+      };
+      
+      const apiUrl = getApiUrl();
+      const orderUrl = `${apiUrl}/api/create-order`;
+      
+      // Debug logging
+      console.log('🔍 Payment Debug Info:');
+      console.log('- VITE_API_URL:', import.meta.env.VITE_API_URL);
+      console.log('- Is Production:', import.meta.env.PROD);
+      console.log('- Resolved API URL:', apiUrl);
+      console.log('- Full Order URL:', orderUrl);
+      
+      let orderResponse;
+      try {
+        orderResponse = await fetch(orderUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            amount: amount,
+            currency: 'INR',
+            receipt: generatedOrderId
+          })
+        });
+      } catch (fetchError: any) {
+        console.error('❌ Fetch Error Details:', fetchError);
+        console.error('- Error Type:', fetchError.name);
+        console.error('- Error Message:', fetchError.message);
+        console.error('- Network Error:', fetchError instanceof TypeError);
+        
+        // Provide helpful error message
+        if (fetchError instanceof TypeError && fetchError.message === 'Failed to fetch') {
+          const helpfulMessage = !import.meta.env.VITE_API_URL
+            ? 'VITE_API_URL is not set. Please set it in Vercel environment variables pointing to your backend URL.'
+            : `Cannot reach backend at ${orderUrl}. Please check:\n1. Backend is deployed and accessible\n2. VITE_API_URL is correct: ${import.meta.env.VITE_API_URL}\n3. No CORS issues`;
+          
+          throw new Error(helpfulMessage);
+        }
+        throw fetchError;
+      }
+
+      // Check if response is JSON
+      const contentType = orderResponse.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await orderResponse.text();
+        console.error('API returned non-JSON response:', text.substring(0, 200));
+        throw new Error(`API endpoint returned HTML instead of JSON. Check if the serverless function is deployed correctly. URL: ${orderUrl}`);
+      }
 
       const orderData = await orderResponse.json();
 
@@ -112,9 +154,9 @@ const RazorpayPayment = ({
         handler: async function (response: any) {
           try {
             // Verify payment with backend
-            const verifyApiUrl = import.meta.env.VITE_API_URL || 
-              (import.meta.env.PROD ? '' : 'http://localhost:3001');
-            const verifyResponse = await fetch(`${verifyApiUrl}/api/verify-payment`, {
+            const verifyApiUrl = getApiUrl();
+            const verifyUrl = `${verifyApiUrl}/api/verify-payment`;
+            const verifyResponse = await fetch(verifyUrl, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -125,6 +167,14 @@ const RazorpayPayment = ({
                 razorpay_signature: response.razorpay_signature
               })
             });
+
+            // Check if response is JSON
+            const verifyContentType = verifyResponse.headers.get('content-type');
+            if (!verifyContentType || !verifyContentType.includes('application/json')) {
+              const text = await verifyResponse.text();
+              console.error('API returned non-JSON response:', text.substring(0, 200));
+              throw new Error(`Payment verification API returned HTML instead of JSON. Check if the serverless function is deployed correctly. URL: ${verifyUrl}`);
+            }
 
             const verifyData = await verifyResponse.json();
 

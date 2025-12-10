@@ -354,7 +354,8 @@ const CheckoutForm: React.FC = () => {
                       street: formData.street,
                       city: formData.city,
                       state: formData.state,
-                      zip: formData.zip
+                      zip: formData.zip,
+                      country: 'India'
                     }}
                     items={cartState.items.map(item => ({
                       productId: item.id,

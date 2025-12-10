@@ -37,8 +37,22 @@ interface User {
 }
 
 // Use relative URL for Vercel deployment, fallback to env var or localhost
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
-  (import.meta.env.PROD ? '' : 'http://localhost:3001');
+const getApiBaseUrl = () => {
+  // If explicitly set, use it
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // In production, use relative URLs (serverless functions on same domain)
+  if (import.meta.env.PROD) {
+    return '';
+  }
+  
+  // In development, use localhost backend
+  return 'http://localhost:3001';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -75,13 +89,34 @@ const AdminDashboard: React.FC = () => {
       setError(null);
       
       const adminEmail = localStorage.getItem('admin_email');
-      const response = await fetch(`${API_BASE_URL}/api/admin/orders`, {
+      const url = `${API_BASE_URL}/api/admin/orders`;
+      
+      console.log('Fetching orders from:', url);
+      console.log('API_BASE_URL:', API_BASE_URL);
+      
+      const response = await fetch(url, {
         headers: {
           'x-admin-email': adminEmail || 'ceo@trueskin.app',
           'x-admin-token': 'admin_authenticated',
           'Content-Type': 'application/json'
         }
+      }).catch((fetchError) => {
+        // Handle network errors (Failed to fetch, CORS, etc.)
+        console.error('Network error:', fetchError);
+        throw new Error(
+          `Failed to connect to backend server at ${url}. ` +
+          `Please ensure the backend is running on port 3001. ` +
+          `Error: ${fetchError.message}`
+        );
       });
+
+      // Check if response is HTML (error page) instead of JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('API returned non-JSON response:', text.substring(0, 200));
+        throw new Error(`API endpoint returned HTML instead of JSON. Check if the serverless function is deployed correctly. URL: ${url}`);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -150,13 +185,33 @@ const AdminDashboard: React.FC = () => {
       setError(null);
       
       const adminEmail = localStorage.getItem('admin_email');
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      const url = `${API_BASE_URL}/api/admin/users`;
+      
+      console.log('Fetching users from:', url);
+      
+      const response = await fetch(url, {
         headers: {
           'x-admin-email': adminEmail || 'ceo@trueskin.app',
           'x-admin-token': 'admin_authenticated',
           'Content-Type': 'application/json'
         }
+      }).catch((fetchError) => {
+        // Handle network errors (Failed to fetch, CORS, etc.)
+        console.error('Network error:', fetchError);
+        throw new Error(
+          `Failed to connect to backend server at ${url}. ` +
+          `Please ensure the backend is running on port 3001. ` +
+          `Error: ${fetchError.message}`
+        );
       });
+
+      // Check if response is HTML (error page) instead of JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('API returned non-JSON response:', text.substring(0, 200));
+        throw new Error(`API endpoint returned HTML instead of JSON. Check if the serverless function is deployed correctly. URL: ${url}`);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -505,33 +560,53 @@ const AdminDashboard: React.FC = () => {
 
                           {/* Shipping Address & Order Items */}
                           {expandedOrder === order.id && (
-                            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                              {/* Shipping Address */}
-                              {order.shippingAddress && (
-                                <div className="flex items-start gap-2 mb-4">
-                                  <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-gray-700 mb-1">Shipping Address</p>
-                                    <p className="text-sm text-gray-600 break-words">
-                                      {order.shippingAddress.street || 'N/A'}<br />
-                                      {order.shippingAddress.city || ''}, {order.shippingAddress.state || ''} {order.shippingAddress.zip || ''}
-                                    </p>
+                            <div className="mt-4 p-4 sm:p-6 bg-gray-50 rounded-lg">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                                {/* Shipping Address */}
+                                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                  <div className="flex items-start gap-2 mb-3">
+                                    <MapPin className="h-5 w-5 text-[#803716] mt-0.5 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-semibold text-gray-800 mb-2">Shipping Address</p>
+                                      <div className="space-y-1 text-sm text-gray-700">
+                                        <p className="font-medium text-gray-900">{order.customerName}</p>
+                                        <p className="break-words">{order.shippingAddress?.street || 'N/A'}</p>
+                                        <p className="break-words">
+                                          {order.shippingAddress?.city || ''}
+                                          {order.shippingAddress?.city && order.shippingAddress?.state && ', '}
+                                          {order.shippingAddress?.state || ''}
+                                          {order.shippingAddress?.zip && ` ${order.shippingAddress.zip}`}
+                                        </p>
+                                        {(order.shippingAddress as any)?.country && (
+                                          <p className="text-gray-600">{(order.shippingAddress as any).country}</p>
+                                        )}
+                                        <div className="pt-2 mt-2 border-t border-gray-200">
+                                          <p className="text-xs text-gray-600">
+                                            <Mail className="h-3 w-3 inline mr-1" />
+                                            {order.customerEmail}
+                                          </p>
+                                          <p className="text-xs text-gray-600">
+                                            <Phone className="h-3 w-3 inline mr-1" />
+                                            {order.customerPhone}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                              )}
 
-                              {/* Order Items */}
-                              {order.items && order.items.length > 0 && (
-                                <div className="mt-4">
-                                  <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                                    <ShoppingBag className="h-4 w-4" />
-                                    Order Items ({order.items.length})
-                                  </p>
-                                  <div className="space-y-2">
-                                    {order.items.map((item) => (
-                                      <div key={item.id} className="flex items-center justify-between p-2 bg-white rounded text-sm">
-                                        <div className="min-w-0 flex-1">
-                                          <p className="font-medium text-gray-900 truncate">Product ID: {item.productId}</p>
+                                {/* Order Items */}
+                                {order.items && order.items.length > 0 && (
+                                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                    <p className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                      <ShoppingBag className="h-5 w-5 text-[#803716]" />
+                                      Order Items ({order.items.length})
+                                    </p>
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                      {order.items.map((item) => (
+                                        <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+                                          <div className="min-w-0 flex-1">
+                                            <p className="font-medium text-gray-900 truncate">Product ID: {item.productId}</p>
                                           <p className="text-xs text-gray-600">Quantity: {item.quantity}</p>
                                         </div>
                                         <p className="font-semibold text-gray-900 ml-4 flex-shrink-0">
@@ -539,25 +614,27 @@ const AdminDashboard: React.FC = () => {
                                         </p>
                                       </div>
                                     ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-
-                              {/* Payment Info */}
-                              {(order.paymentId || order.razorpayOrderId) && (
-                                <div className="mt-4 pt-4 border-t border-gray-200">
-                                  {order.paymentId && (
-                                    <p className="text-xs text-gray-600 break-words">
-                                      <span className="font-medium">Payment ID:</span> {order.paymentId}
-                                    </p>
-                                  )}
-                                  {order.razorpayOrderId && (
-                                    <p className="text-xs text-gray-600 mt-1 break-words">
-                                      <span className="font-medium">Razorpay Order ID:</span> {order.razorpayOrderId}
-                                    </p>
-                                  )}
-                                </div>
-                              )}
+                                )}
+                                
+                                {/* Payment Info */}
+                                {(order.paymentId || order.razorpayOrderId) && (
+                                  <div className="mt-4 pt-4 border-t border-gray-200 bg-white p-4 rounded-lg">
+                                    <p className="text-xs font-semibold text-gray-700 mb-2">Payment Information</p>
+                                    {order.paymentId && (
+                                      <p className="text-xs text-gray-600 break-words">
+                                        <span className="font-medium">Payment ID:</span> {order.paymentId}
+                                      </p>
+                                    )}
+                                    {order.razorpayOrderId && (
+                                      <p className="text-xs text-gray-600 mt-1 break-words">
+                                        <span className="font-medium">Razorpay Order ID:</span> {order.razorpayOrderId}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>

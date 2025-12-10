@@ -40,6 +40,7 @@ export interface CreateOrderData {
     city: string;
     state: string;
     zip: string;
+    country?: string;
   };
   cartItems: CartItem[];
   razorpayOrderId?: string;
