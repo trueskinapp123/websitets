@@ -56,6 +56,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const LAST_ACTIVITY_KEY = 'lastActivityTime';
 
+  const ensureUserProfile = async (sessionUser: User) => {
+    const payload = {
+      id: sessionUser.id,
+      email: sessionUser.email || '',
+      full_name: (sessionUser.user_metadata?.full_name as string) || null,
+      avatar_url: (sessionUser.user_metadata?.avatar_url as string) || null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert(payload, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Error ensuring user profile:', error);
+    }
+  };
+
   // Update last activity time (both in memory and localStorage)
   const updateLastActivity = () => {
     const now = Date.now();
@@ -294,9 +312,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('No session found, cleared activity storage');
       }
 
+      let initialProfile: UserProfile | null = null;
+      if (session?.user) {
+        await ensureUserProfile(session.user);
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        initialProfile = (profile as UserProfile) || null;
+      }
+
       setState({
         user: session?.user ?? null,
-        profile: null,
+        profile: initialProfile,
         session,
         loading: false
       });
@@ -407,6 +436,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (session?.user) {
         console.log('Fetching profile for user:', session.user.id);
+        await ensureUserProfile(session.user);
         // Fetch user profile
         const { data: profile, error } = await supabase
           .from('user_profiles')

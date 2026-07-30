@@ -31,7 +31,7 @@ export interface OrderItem {
 }
 
 export interface CreateOrderData {
-  userId: string | null; // null for guest orders
+  userId: string | null;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -56,10 +56,19 @@ export const orderService = {
       const totalAmount = orderData.cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       console.log('Calculated total amount:', totalAmount);
 
-      // Use null for guest orders (user_id is nullable in database)
-      const userId = orderData.userId || null;
+      // Resolve authenticated user id to keep orders linked to profile.
+      let userId = orderData.userId;
+      if (!userId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        userId = user?.id || null;
+      }
 
-      // Create order (guest orders will have user_id = null)
+      if (!userId) {
+        console.error('Cannot create order: no authenticated user id available');
+        return null;
+      }
+
+      // Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -385,7 +394,7 @@ export const orderService = {
       }
 
       // Clear user's cart after successful order
-      if (orderData.userId !== 'guest') {
+      if (orderData.userId) {
         await this.clearUserCart(orderData.userId);
       }
 

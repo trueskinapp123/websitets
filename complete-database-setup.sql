@@ -245,9 +245,9 @@ CREATE TRIGGER on_auth_user_created
 
 -- Insert sample products
 INSERT INTO products (id, name, count, original_price, price, discount, description, rating, reviews, popular, images) VALUES
-('heal-pack', 'Heal Pack', '4 Masks', 420.00, 304.00, '5% OFF', 'Perfect starter pack for first-time users. Experience the power of premium collagen with our carefully curated 4-mask collection designed to introduce your skin to the TrueSkin difference.', 4.8, 124, false, ARRAY['/images/p4.png', '/images/prd.jpg', '/images/tsp.jpg']),
-('fresh-pack', 'Fresh Pack', '8 Masks', 800.00, 576.00, '5% OFF', 'Most popular choice for regular users. Transform your skincare routine with our 8-mask collection, perfect for maintaining that radiant glow throughout the month.', 4.9, 286, true, ARRAY['/images/p8.png', '/images/prd.jpg', '/images/tsp.jpg']),
-('glow-pack', 'Glow Pack', '12 Masks', 1158.00, 816.00, '5% OFF', 'Best value for skincare enthusiasts. Our premium 12-mask collection offers the ultimate skincare experience with maximum savings and long-lasting results.', 4.9, 198, false, ARRAY['/images/p12.png', '/images/prd.jpg', '/images/tsp.jpg'])
+('heal-pack', 'Heal Pack', '4 Masks', 420.00, 499.00, '5% OFF', 'Perfect starter pack for first-time users. Experience the power of premium collagen with our carefully curated 4-mask collection designed to introduce your skin to the TrueSkin difference.', 4.8, 124, false, ARRAY['/images/p4.png', '/images/prd.jpg', '/images/tsp.jpg']),
+('fresh-pack', 'Fresh Pack', '8 Masks', 800.00, 898.00, '5% OFF', 'Most popular choice for regular users. Transform your skincare routine with our 8-mask collection, perfect for maintaining that radiant glow throughout the month.', 4.9, 286, true, ARRAY['/images/p8.png', '/images/prd.jpg', '/images/tsp.jpg']),
+('glow-pack', 'Glow Pack', '12 Masks', 1158.00, 1272.00, '5% OFF', 'Best value for skincare enthusiasts. Our premium 12-mask collection offers the ultimate skincare experience with maximum savings and long-lasting results.', 4.9, 198, false, ARRAY['/images/p12.png', '/images/prd.jpg', '/images/tsp.jpg'])
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     count = EXCLUDED.count,

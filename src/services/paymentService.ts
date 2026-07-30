@@ -71,8 +71,18 @@ class PaymentService {
       console.log('Razorpay order created:', razorpayOrder);
 
       // Create order in database
+      let resolvedUserId = paymentRequest.userId || null;
+      if (!resolvedUserId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        resolvedUserId = user?.id || null;
+      }
+
+      if (!resolvedUserId) {
+        throw new Error('Please sign in before placing an order.');
+      }
+
       const order = await orderService.createOrder({
-        userId: paymentRequest.userId || 'guest',
+        userId: resolvedUserId,
         customerName: paymentRequest.customerInfo.name,
         customerEmail: paymentRequest.customerInfo.email,
         customerPhone: paymentRequest.customerInfo.contact,

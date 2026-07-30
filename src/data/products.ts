@@ -6,7 +6,7 @@ export const products: Product[] = [
     name: "Heal Pack",
     count: "4 Masks",
     originalPrice: 420,
-    price: 304,
+    price: 499,
     discount: "5% OFF",
     description:
       "Perfect starter pack for first-time users. Experience the power of premium collagen with our carefully curated 4-mask collection designed to introduce your skin to the TrueSkin difference.",
@@ -23,7 +23,7 @@ export const products: Product[] = [
     name: "Fresh Pack",
     count: "8 Masks",
     originalPrice: 800,
-    price: 576,
+    price: 898,
     discount: "5% OFF",
     description:
       "Most popular choice for regular users. Transform your skincare routine with our 8-mask collection, perfect for maintaining that radiant glow throughout the month.",
@@ -41,7 +41,7 @@ export const products: Product[] = [
     name: "Glow Pack",
     count: "12 Masks",
     originalPrice: 1158,
-    price: 816,
+    price: 1272,
     discount: "5% OFF",
     description:
       "Best value for skincare enthusiasts. Our premium 12-mask collection offers the ultimate skincare experience with maximum savings and long-lasting results.",
