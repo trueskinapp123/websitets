@@ -5,7 +5,7 @@ export const products: Product[] = [
     id: "heal-pack",
     name: "Heal Pack",
     count: "4 Masks",
-    originalPrice: 420,
+    originalPrice: 520,
     price: 499,
     discount: "5% OFF",
     description:
@@ -22,7 +22,7 @@ export const products: Product[] = [
     id: "fresh-pack",
     name: "Fresh Pack",
     count: "8 Masks",
-    originalPrice: 800,
+    originalPrice: 920,
     price: 898,
     discount: "5% OFF",
     description:
@@ -40,7 +40,7 @@ export const products: Product[] = [
     id: "glow-pack",
     name: "Glow Pack",
     count: "12 Masks",
-    originalPrice: 1158,
+    originalPrice: 1500,
     price: 1272,
     discount: "5% OFF",
     description:
